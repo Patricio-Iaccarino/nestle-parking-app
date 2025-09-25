@@ -1,6 +1,6 @@
 name: cocheras_nestle_web
 description: "App web para administración de las Cocheras de la Empresa Nestle"
-publish_to: "none" # Remove this line if you wish to publish to pub.dev
+publish_to: "none" 
 version: 1.0.0+1
 environment:
   sdk: ^3.9.0
@@ -10,6 +10,8 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.0.0
   go_router: ^16.2.4
+  firebase_core: ^4.1.1
+  cloud_firestore: ^6.0.2
 
 dev_dependencies:
   flutter_lints: ^6.0.0

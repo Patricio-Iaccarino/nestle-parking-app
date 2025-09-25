@@ -2,20 +2,14 @@ import 'package:cocheras_nestle_web/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyC3GHUyVhui6BwQmhQlW535SeLzoAWyJJg",
-      authDomain: "cocherasnestle.firebaseapp.com",
-      projectId: "cocherasnestle",
-      storageBucket: "cocherasnestle.firebasestorage.app",
-      messagingSenderId: "321100725894",
-      appId: "1:321100725894:web:a1af0162c3763ad2235b07",
-      measurementId: "G-GKMWEQVV5B",
-    ),
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const ProviderScope(child: MyApp()));
 }
 

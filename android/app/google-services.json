@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "321100725894",
+    "project_id": "cocherasnestle",
+    "storage_bucket": "cocherasnestle.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:321100725894:android:f3a35ed220dac57b235b07",
+        "android_client_info": {
+          "package_name": "com.constructdev.cocheras"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "321100725894-i3l5nua49f92i5e0lvtu7qiju01krv0t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.constructdev.cocheras",
+            "certificate_hash": "dad763106b494298a2d89e9ab43a5cc334b14214"
+          }
+        },
+        {
+          "client_id": "321100725894-ardnkehhc5rj1m355malj5677428vq82.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDki8w-C8TFlow3BQmEWAKwwORuJL8fLL0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "321100725894-ardnkehhc5rj1m355malj5677428vq82.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "321100725894-de1r480a06vtd15as8k2qk2vboifbijp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cocheras"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:321100725894:android:8db97a6e68a68355235b07",
+        "android_client_info": {
+          "package_name": "com.example.cocheras_nestle_web"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "321100725894-ardnkehhc5rj1m355malj5677428vq82.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDki8w-C8TFlow3BQmEWAKwwORuJL8fLL0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "321100725894-ardnkehhc5rj1m355malj5677428vq82.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "321100725894-de1r480a06vtd15as8k2qk2vboifbijp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cocheras"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

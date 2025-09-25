@@ -14,21 +14,20 @@ class Login extends StatelessWidget {
 }
 
 class _FireStoreTest extends StatelessWidget {
-  const _FireStoreTest({super.key});
+  const _FireStoreTest();
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: FirebaseFirestore.instance.collection('tests').add({
-        'mensaje': 'Hola Firebase!',
-        'timestamp': DateTime.now(),
-      }),
+      future: FirebaseFirestore.instance.collection('tests').get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
-          return const Text('Documento creado en Firestore ✅');
+          if (snapshot.hasError) {
+            return Text('Error: ${snapshot.error}');
+          }
+          return const Text('Lectura exitosa de Firestore ✅');
         }
         return const CircularProgressIndicator();
-        ;
       },
     );
   }

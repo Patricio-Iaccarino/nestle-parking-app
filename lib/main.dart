@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
       routerConfig: appRouter,
       title: 'Cocheras Nestle',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 183, 58, 58)),
       ),
     );
   }

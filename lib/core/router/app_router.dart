@@ -1,19 +1,20 @@
-import 'package:cocheras_nestle_web/presentation/screens/dashboard.dart';
-import 'package:cocheras_nestle_web/presentation/screens/garages.dart';
-import 'package:cocheras_nestle_web/presentation/screens/login.dart';
-import 'package:cocheras_nestle_web/presentation/screens/reports.dart';
-import 'package:cocheras_nestle_web/presentation/screens/security.dart';
-import 'package:cocheras_nestle_web/presentation/screens/users.dart';
+import 'package:cocheras_nestle_web/features/admin/admin_home.dart';
+import 'package:cocheras_nestle_web/features/dashboard/dashboard.dart';
+// import 'package:cocheras_nestle_web/features/reservations/garages.dart';
+import 'package:cocheras_nestle_web/features/auth/login.dart';
+// import 'package:cocheras_nestle_web/features/admin/reports.dart';
+// import 'package:cocheras_nestle_web/features/security/security.dart';
+// import 'package:cocheras_nestle_web/features/admin/users.dart';
 import 'package:go_router/go_router.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/login',
+  initialLocation: '/dashboard',
   routes: [
-    GoRoute(path: '/login', builder: (context, state) => const Login()),
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(path: '/dashboard', builder: (context, state) => const Dashboard()),
-    GoRoute(path: '/reports', builder: (context, state) => const Reports()),
-    GoRoute(path: '/garages', builder: (context, state) => const Garages()),
-    GoRoute(path: '/security', builder: (context, state) => const Security()),
-    GoRoute(path: '/users', builder: (context, state) => const Users()),
+    GoRoute(path: '/admin', builder: (context, state) => const AdminScreen()),
+    // GoRoute(path: '/garages', builder: (context, state) => const Garages()),
+    // GoRoute(path: '/security', builder: (context, state) => const Security()),
+    // GoRoute(path: '/users', builder: (context, state) => const Users()),
   ],
 );

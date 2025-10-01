@@ -1,13 +1,12 @@
-import 'package:cocheras_nestle_web/core/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
 
 class Dashboard extends StatelessWidget {
   const Dashboard({super.key});
 
-    @override
+  @override
   Widget build(BuildContext context) {
-    return AppLayout(
-      child: Column(
+    return Scaffold(
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
@@ -15,12 +14,12 @@ class Dashboard extends StatelessWidget {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          // Tarjetas rápidas de métricas
+
           Row(
             children: const [
               _DashboardCard(
                 title: "Cocheras Totales",
-                value: "120",
+                value: "70",
                 icon: Icons.local_parking,
               ),
               SizedBox(width: 16),
@@ -32,13 +31,13 @@ class Dashboard extends StatelessWidget {
               SizedBox(width: 16),
               _DashboardCard(
                 title: "Usuarios Activos",
-                value: "80",
+                value: "150",
                 icon: Icons.people,
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Placeholder para gráficos
+
           Expanded(
             child: Center(
               child: Text(
@@ -78,10 +77,19 @@ class _DashboardCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
-              )
+              ),
             ],
           ),
         ),

@@ -72,7 +72,7 @@ class _DashboardCard extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              Icon(icon, size: 40, color: Colors.deepPurple),
+              Icon(icon, size: 40, color: Colors.redAccent),
               const SizedBox(width: 16),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

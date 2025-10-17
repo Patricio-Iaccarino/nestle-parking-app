@@ -1,7 +1,6 @@
-import 'package:cocheras_nestle_web/features/auth/domain/models/app_user.dart';
+import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -20,7 +19,15 @@ class AuthRepository {
 
     final doc = await _firestore.collection('users').doc(uid).get();
     if (!doc.exists) {
-      final newUser = AppUser(uid: uid, email: email, role: 'user');
+      final newUser = AppUser(
+        id: uid,
+        email: email,
+        role: 'user',
+        displayName: '',
+        establishmentId: '',
+        departmentId: '',
+        vehiclePlates: [],
+      );
       await _firestore.collection('users').doc(uid).set(newUser.toMap());
       _cachedUser = newUser;
     } else {
@@ -36,16 +43,15 @@ class AuthRepository {
   }
 
   Future<List<AppUser>> getAllAdmins() async {
-  final query = await _firestore
-      .collection('users')
-      .where('role', isEqualTo: 'admin')
-      .get();
+    final query = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .get();
 
-  return query.docs
-      .map((doc) => AppUser.fromMap(doc.data(), doc.id))
-      .toList();
-}
-
+    return query.docs
+        .map((doc) => AppUser.fromMap(doc.data(), doc.id))
+        .toList();
+  }
 
   bool get isLoggedIn => _auth.currentUser != null;
 }

@@ -1,6 +1,6 @@
 import 'package:cocheras_nestle_web/features/auth/data/auth_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cocheras_nestle_web/features/auth/domain/models/app_user.dart';
+import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -36,6 +36,8 @@ class AuthController extends StateNotifier<AsyncValue<AppUser?>> {
     state = const AsyncValue.data(null);
   }
 
- 
-
+  Future<void> logout() async {
+    await repository.signOut();
+    state = const AsyncValue.data(null);
+  }
 }

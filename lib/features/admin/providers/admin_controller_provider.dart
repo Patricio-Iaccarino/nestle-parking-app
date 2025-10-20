@@ -4,6 +4,7 @@ import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/admin/data/repositories/admin_repository.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_repository_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 class AdminState {
@@ -33,7 +34,6 @@ class AdminState {
     List<ParkingSpot>? parkingSpots,
     List<AppUser>? users,
     List<AppUser>? searchResults,
-
   }) {
     return AdminState(
       isLoading: isLoading ?? this.isLoading,
@@ -49,6 +49,7 @@ class AdminState {
 
 class AdminController extends StateNotifier<AdminState> {
   final AdminRepository _repository;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   AdminController(this._repository) : super(AdminState());
 
@@ -185,11 +186,53 @@ class AdminController extends StateNotifier<AdminState> {
   }
 
   Future<void> createUser(AppUser user) async {
+    // Ponemos el estado en 'cargando' para feedback en la UI
+    state = state.copyWith(isLoading: true);
     try {
-      await _repository.createUser(user);
+      // --- 1. Crear el usuario en Firebase Authentication ---
+      // Usamos una contraseña temporal que el usuario nunca conocerá ni usará.
+      final tempPassword =
+          'temporaryPassword_${DateTime.now().millisecondsSinceEpoch}';
+
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: user.email,
+            password: tempPassword,
+          );
+
+      // Obtenemos el UID único del usuario recién creado en el sistema de Auth
+      final newUserId = userCredential.user!.uid;
+
+      // --- 2. Enviar el correo de "Establecer Contraseña" ---
+      await _auth.sendPasswordResetEmail(email: user.email);
+
+      // --- 3. Crear el documento del usuario en Firestore ---
+      // Usamos el método copyWith para añadir el ID de Auth al objeto usuario
+      final userWithId = user.copyWith(id: newUserId);
+
+      // Ahora sí, llamamos al repositorio para guardar en Firestore
+      await _repository.createUser(userWithId);
+
+      // Recargamos la lista de usuarios para que la UI se actualice
       await loadUsers(user.departmentId);
+    } on FirebaseAuthException catch (e) {
+      // Manejamos errores comunes de Auth, como un email que ya existe
+      if (e.code == 'email-already-in-use') {
+        state = state.copyWith(
+          error: 'El correo electrónico ya está registrado.',
+          isLoading: false,
+        );
+      } else {
+        state = state.copyWith(
+          error: 'Error de autenticación: ${e.message}',
+          isLoading: false,
+        );
+      }
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    } finally {
+      // Nos aseguramos de quitar el estado de 'cargando' al final
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -260,33 +303,35 @@ class AdminController extends StateNotifier<AdminState> {
 
   // Dentro de la clase AdminController
 
-// --- 🔹 USER SEARCH ---
-Future<void> searchUsers(String query) async {
-  state = state.copyWith(isLoading: true, searchResults: []);
-  try {
-    if (query.isEmpty) {
-      state = state.copyWith(isLoading: false);
-      return;
-    }
-    // Usamos el método que ya tienes para obtener todos los usuarios
-    final allUsers = await _repository.getAllUsers(); 
-    
-    print('Total users fetched: ${allUsers.length}');
-    
-    // Filtramos localmente (para no golpear la DB constantemente)
-    final filteredUsers = allUsers.where((user) {
-      return user.displayName.toLowerCase().contains(query.toLowerCase()) ||
-             user.email.toLowerCase().contains(query.toLowerCase());
-    }).toList();
-    
-    print('Usuarios encontrados tras filtrar con "$query": ${filteredUsers.length}');
+  // --- 🔹 USER SEARCH ---
+  Future<void> searchUsers(String query) async {
+    state = state.copyWith(isLoading: true, searchResults: []);
+    try {
+      if (query.isEmpty) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+      // Usamos el método que ya tienes para obtener todos los usuarios
+      final allUsers = await _repository.getAllUsers();
 
-    state = state.copyWith(searchResults: filteredUsers, isLoading: false);
-  } catch (e) {
-    print('ERROR en searchUsers: $e'); // Agregamos un print para el error
-    state = state.copyWith(error: e.toString(), isLoading: false);
+      print('Total users fetched: ${allUsers.length}');
+
+      // Filtramos localmente (para no golpear la DB constantemente)
+      final filteredUsers = allUsers.where((user) {
+        return user.displayName.toLowerCase().contains(query.toLowerCase()) ||
+            user.email.toLowerCase().contains(query.toLowerCase());
+      }).toList();
+
+      print(
+        'Usuarios encontrados tras filtrar con "$query": ${filteredUsers.length}',
+      );
+
+      state = state.copyWith(searchResults: filteredUsers, isLoading: false);
+    } catch (e) {
+      print('ERROR en searchUsers: $e'); // Agregamos un print para el error
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
   }
-}
 }
 
 final adminControllerProvider =

@@ -1,4 +1,5 @@
 import 'package:cocheras_nestle_web/core/router/app_router.dart';
+import 'package:cocheras_nestle_web/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -22,9 +23,9 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       title: 'Cocheras Nestlé',
       routerConfig: router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent),
-        useMaterial3: true,
+      theme: AppTheme(isDark: false).getTheme(
+
+        
       ),
     );
   }

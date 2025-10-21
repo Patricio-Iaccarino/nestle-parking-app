@@ -45,54 +45,60 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
           : state.establishments.isEmpty
           ? const Center(child: Text('No hay establecimientos registrados.'))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Nombre')),
-                  DataColumn(label: Text('Dirección')),
-                  DataColumn(label: Text('Tipo')),
-                  DataColumn(label: Text('Acciones')),
-                ],
-                rows: state.establishments.map((e) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(e.name)),
-                      DataCell(Text(e.address)),
-                      DataCell(Text(e.organizationType)),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () =>
-                                  _showEditDialog(context, controller, e),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              color: Colors.red,
-                              onPressed: () =>
-                                  _confirmDelete(context, controller, e.id),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.person_add),
-                              color: Colors.blue,
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AssignAdminScreen(
-                                      establishment: e,
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                elevation: 2, // Sombra sutil
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Nombre')),
+                    DataColumn(label: Text('Dirección')),
+                    DataColumn(label: Text('Tipo')),
+                    DataColumn(label: Text('Acciones')),
+                  ],
+                  rows: state.establishments.map((e) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(e.name)),
+                        DataCell(Text(e.address)),
+                        DataCell(Text(e.organizationType)),
+                        DataCell(
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                onPressed: () =>
+                                    _showEditDialog(context, controller, e),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete),
+                                color: Colors.red,
+                                onPressed: () =>
+                                    _confirmDelete(context, controller, e.id),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.person_add),
+                                color: Colors.blue,
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          AssignAdminScreen(establishment: e),
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                }).toList(),
+                      ],
+                    );
+                  }).toList(),
+                ),
               ),
             ),
     );

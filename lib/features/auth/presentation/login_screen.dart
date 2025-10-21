@@ -47,7 +47,7 @@ class LoginScreen extends ConsumerWidget {
                     height: 100,
                     width: 100,
                     decoration: BoxDecoration(
-                      color: Colors.redAccent.shade100,
+                      color: const Color(0xFF005792),
                       shape: BoxShape.circle,
                     ),
                     child: const Center(
@@ -55,8 +55,8 @@ class LoginScreen extends ConsumerWidget {
                         'Nestlé',
                         style: TextStyle(
                           color: Colors.white,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          fontSize: 20,
                         ),
                       ),
                     ),
@@ -65,15 +65,14 @@ class LoginScreen extends ConsumerWidget {
                   const Text(
                     'Cocheras Nestlé',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.redAccent,
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Inicia sesión para continuar',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   const SizedBox(height: 28),
                   if (authState.isLoading)

@@ -56,6 +56,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 ],
                 rows: state.departments.map((dept) {
                   return DataRow(
+
                     cells: [
                       DataCell(Text(dept.name)),
                       DataCell(Text(dept.description ?? '')),
@@ -66,7 +67,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               icon: const Icon(Icons.group),
                               tooltip: 'Gestionar Usuarios',
                               onPressed: () {
-                                // Navegamos a la nueva ruta pasándole ambos IDs
                                 context.go(
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
                                 );
@@ -91,7 +91,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                     ],
                     onSelectChanged: (isSelected) {
                       if (isSelected ?? false) {
-                        // Navegamos a la pantalla de cocheras pasándole el ID del departamento
                         context.go(
                           '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
                         );

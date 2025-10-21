@@ -38,11 +38,39 @@ class AppLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     final isSuperAdmin = authState.value?.role == 'superadmin';
+    final user = authState.value;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cocheras Nestlé'),
         actions: [
+         
+        if (user != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: Center(
+              child: Chip(
+              
+                avatar: CircleAvatar(
+                  backgroundColor: Colors.blueGrey.shade700,
+                  child: Text(
+                    user.displayName.isNotEmpty
+                        ? user.displayName[0].toUpperCase()
+                        : 'U', 
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+               
+                label: Text(
+                  user.displayName.isNotEmpty
+                      ? user.displayName
+                      : user.email, 
+                ),
+               
+              ),
+            ),
+          ),
+   
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',

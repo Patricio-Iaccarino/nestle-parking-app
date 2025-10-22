@@ -24,8 +24,6 @@ class MyApp extends ConsumerWidget {
       title: 'Cocheras Nestlé',
       routerConfig: router,
       theme: AppTheme(isDark: false).getTheme(
-
-        
       ),
     );
   }

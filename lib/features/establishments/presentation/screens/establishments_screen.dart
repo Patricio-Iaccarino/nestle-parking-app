@@ -1,3 +1,4 @@
+import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/presentation/screen/assign_Admin_screen.dart';
@@ -17,7 +18,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(adminControllerProvider.notifier).loadEstablishments();
+      ref.read(adminControllerProvider.notifier).loadEstablishmentsAndAllUsers();
     });
   }
 
@@ -25,6 +26,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(adminControllerProvider);
     final controller = ref.read(adminControllerProvider.notifier);
+    final List<AppUser> allUsers = state.users;
 
     return Scaffold(
       appBar: AppBar(
@@ -32,7 +34,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: controller.loadEstablishments,
+            onPressed: controller.loadEstablishmentsAndAllUsers,
           ),
           IconButton(
             icon: const Icon(Icons.add),
@@ -57,30 +59,48 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     DataColumn(label: Text('Nombre')),
                     DataColumn(label: Text('Dirección')),
                     DataColumn(label: Text('Tipo')),
+                    DataColumn(label: Text('Administrador')),
                     DataColumn(label: Text('Acciones')),
                   ],
                   rows: state.establishments.map((e) {
+                    // --- ✨ LÓGICA PARA BUSCAR AL ADMIN ---
+                      String adminName = 'Sin asignar';
+                      try {
+                        // Buscamos en la lista de todos los usuarios
+                        final admin = allUsers.firstWhere(
+                          (user) => user.role == 'admin' && user.establishmentId == e.id
+                        );
+                        adminName = admin.displayName;
+                      } catch (err) {
+                        // Si no encuentra (firstWhere falla), no hacemos nada.
+                        // adminName se queda como 'Sin asignar'.
+                      }
+
                     return DataRow(
                       cells: [
                         DataCell(Text(e.name)),
                         DataCell(Text(e.address)),
                         DataCell(Text(e.organizationType)),
+                        DataCell(Text(adminName)),
                         DataCell(
                           Row(
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.edit),
+                                tooltip: 'Editar',
                                 onPressed: () =>
                                     _showEditDialog(context, controller, e),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete),
+                                tooltip: 'Eliminar',
                                 color: Colors.red,
                                 onPressed: () =>
                                     _confirmDelete(context, controller, e.id),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.person_add),
+                                tooltip: 'Asignar Administrador',
                                 color: Colors.blue,
                                 onPressed: () {
                                   Navigator.push(

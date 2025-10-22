@@ -28,9 +28,26 @@ class AppTheme {
       ),
       // Define el estilo de los campos de texto
       inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        
       ),
+      
+      cardTheme: CardThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 4,
+        margin: const EdgeInsets.all(8),
+      ),
+
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF005792),
+        foregroundColor: Colors.white,
+      ),
+
+   
+
       useMaterial3: true,
+
+
     );
   }
 }

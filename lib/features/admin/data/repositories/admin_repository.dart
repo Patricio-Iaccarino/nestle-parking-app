@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 
 class AdminRepository {
@@ -157,5 +158,43 @@ class AdminRepository {
     return snapshot.docs
         .map((doc) => AppUser.fromMap(doc.data(), doc.id))
         .toList();
+  }
+
+  // En la clase AdminRepository (admin_repository.dart)
+
+  // ... (después de tus otros métodos como deleteUser, etc.)
+
+  // --- 🔹 RESERVATIONS (NUEVO) ---
+  Future<List<SpotRelease>> getReservations(
+    String establishmentId, {
+    DateTime? date,
+  }) async {
+    try {
+      // 1. Inicia la consulta
+      Query query =
+          _firestore // Asumo que se llama _firestore
+              .collection('spotReleases')
+              .where('establishmentId', isEqualTo: establishmentId);
+
+      // 2. Si se provee una fecha, filtra por ese día
+      if (date != null) {
+        final startOfDay = DateTime(date.year, date.month, date.day);
+        final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+        query = query
+            .where('releaseDate', isGreaterThanOrEqualTo: startOfDay)
+            .where('releaseDate', isLessThanOrEqualTo: endOfDay);
+      }
+
+      // 3. Ejecuta y transforma los datos
+      final snapshot = await query.get();
+
+      // ✨ ¡USA EL 'fromMap' QUE CREAMOS!
+      return snapshot.docs.map((doc) {
+        return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }).toList();
+    } catch (e) {
+      print('Error al obtener reservaciones: $e');
+      throw Exception('No se pudieron cargar las reservaciones.');
+    }
   }
 }

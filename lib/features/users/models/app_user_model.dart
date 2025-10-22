@@ -1,4 +1,3 @@
-
 class AppUser {
   final String id;
   final String email;
@@ -19,13 +18,32 @@ class AppUser {
   });
 
   factory AppUser.fromMap(Map<String, dynamic> data, String documentId) {
+    // --- Normalizamos el campo role (puede ser String o List) ---
+    String normalizeRole(dynamic rawRole) {
+      if (rawRole is String) return rawRole.trim();
+      if (rawRole is List && rawRole.isNotEmpty) {
+        final first = rawRole.first;
+        if (first is String) return first.trim();
+      }
+      return 'TITULAR';
+    }
+
+    // --- Normalizamos el campo establishmentId (puede ser String o List) ---
+    String normalizeEstablishment(dynamic rawEst) {
+      if (rawEst is String) return rawEst.trim();
+      if (rawEst is List) {
+        return rawEst.map((e) => e.toString()).join(','); // concatenamos IDs
+      }
+      return '';
+    }
+
     return AppUser(
       id: documentId,
-      email: data['email'] ?? '',
-      displayName: data['displayName'] ?? '',
-      role: data['role'] ?? 'TITULAR',
-      establishmentId: data['establishmentId'] ?? '',
-      departmentId: data['departmentId'] ?? '',
+      email: (data['email'] ?? '').toString().trim(),
+      displayName: (data['displayName'] ?? '').toString().trim(),
+      role: normalizeRole(data['role']),
+      establishmentId: normalizeEstablishment(data['establishmentId']),
+      departmentId: (data['departmentId'] ?? '').toString(),
       vehiclePlates: List<String>.from(data['vehiclePlates'] ?? []),
     );
   }

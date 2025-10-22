@@ -302,36 +302,48 @@ class AdminController extends StateNotifier<AdminState> {
   }
 
   // Dentro de la clase AdminController
+// --- 🔹 USER SEARCH (versión final y compatible con AppUser actualizado) ---
+Future<void> searchUsers(String query) async {
+  state = state.copyWith(isLoading: true, searchResults: []);
+  try {
+    final q = query.trim().toLowerCase();
 
-  // --- 🔹 USER SEARCH ---
-  Future<void> searchUsers(String query) async {
-    state = state.copyWith(isLoading: true, searchResults: []);
-    try {
-      if (query.isEmpty) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
-      // Usamos el método que ya tienes para obtener todos los usuarios
-      final allUsers = await _repository.getAllUsers();
-
-      print('Total users fetched: ${allUsers.length}');
-
-      // Filtramos localmente (para no golpear la DB constantemente)
-      final filteredUsers = allUsers.where((user) {
-        return user.displayName.toLowerCase().contains(query.toLowerCase()) ||
-            user.email.toLowerCase().contains(query.toLowerCase());
-      }).toList();
-
-      print(
-        'Usuarios encontrados tras filtrar con "$query": ${filteredUsers.length}',
-      );
-
-      state = state.copyWith(searchResults: filteredUsers, isLoading: false);
-    } catch (e) {
-      print('ERROR en searchUsers: $e'); // Agregamos un print para el error
-      state = state.copyWith(error: e.toString(), isLoading: false);
+    // Si el campo está vacío, limpiamos resultados
+    if (q.isEmpty) {
+      state = state.copyWith(isLoading: false);
+      return;
     }
+
+    // Obtenemos todos los usuarios desde Firestore
+    final allUsers = await _repository.getAllUsers();
+
+    // 🔹 Filtramos solo los que tienen rol "admin" (ya normalizado en AppUser)
+    final adminUsers = allUsers.where(
+      (user) => user.role.toLowerCase() == 'admin',
+    );
+
+    // 🔹 Aplicamos el filtro de búsqueda (por nombre o email)
+    final filteredUsers = adminUsers.where((user) {
+      final name = user.displayName.toLowerCase();
+      final email = user.email.toLowerCase();
+      return name.contains(q) || email.contains(q);
+    }).toList();
+
+    // Log para debug
+    print('🔍 Admins encontrados con "$query": ${filteredUsers.length}');
+    for (var u in filteredUsers) {
+      print('   → ${u.email} (${u.role})');
+    }
+
+    // Actualizamos el estado con los resultados filtrados
+    state = state.copyWith(searchResults: filteredUsers, isLoading: false);
+  } catch (e) {
+    print('❌ ERROR en searchUsers: $e');
+    state = state.copyWith(error: e.toString(), isLoading: false);
   }
+}
+
+
 }
 
 final adminControllerProvider =

@@ -159,7 +159,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
         title: Text('Asignar cochera a Titular'),
         content: DropdownButtonFormField<String?>(
           // Permitimos que el valor sea null
-          value: selectedUserId, // ✨ CORREGIDO: Usamos el valor directamente
+          initialValue: selectedUserId, // ✨ CORREGIDO: Usamos el valor directamente
           hint: const Text('Seleccionar titular'),
           items: [
             // Opción para desasignar la cochera

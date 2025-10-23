@@ -132,7 +132,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                         value: dept.id,
                         child: Text(dept.name),
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
                 const Spacer(),

@@ -183,7 +183,6 @@ class AdminRepository {
         return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       }).toList();
     } catch (e) {
-      print('Error al obtener reservaciones: $e');
       throw Exception('No se pudieron cargar las reservaciones.');
     }
   }

@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
+import 'package:go_router/go_router.dart';
 
 class ParkingSpotsScreen extends ConsumerStatefulWidget {
   final String departmentId;
   final String establishmentId;
+  final String departmentName;
 
   const ParkingSpotsScreen({
     super.key,
     required this.departmentId,
     required this.establishmentId,
+    required this.departmentName,
   });
 
   @override
@@ -35,10 +38,27 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     final controller = ref.read(adminControllerProvider.notifier);
     final parkingSpots = state.parkingSpots;
     final users = state.users;
+    String departmentName = 'Cocheras'; // Un título por defecto
+    try {
+      
+      final dept = state.departments.firstWhere(
+        (d) => d.id == widget.departmentId,
+      );
+      departmentName = 'Cocheras de ${dept.name}';
+    } catch (e) {
+      departmentName = widget.departmentName;
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cocheras del Departamento'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Volver a Departamentos',
+          onPressed: () {
+            context.pop();
+          },
+        ),
+        title: Text(departmentName),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -130,8 +150,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     // Hacemos la variable local explícitamente nullable
     String? selectedUserId = spot.assignedUserId;
 
-    // Filtramos solo los usuarios que tienen el rol de TITULAR
-    // Una cochera fija solo debería poder asignarse a un titular.
+   
     final assignableUsers = users.where((u) => u.role == 'TITULAR').toList();
 
     await showDialog(
@@ -219,7 +238,7 @@ Future<void> _showQuickAddSpotDialog(
 ) async {
   final spotNumberController = TextEditingController();
   final floorController = TextEditingController();
-  String type = 'FIJA';
+  String type = 'SIMPLE';
 
   await showDialog(
     context: context,
@@ -240,10 +259,10 @@ Future<void> _showQuickAddSpotDialog(
           DropdownButtonFormField<String>(
             initialValue: type,
             items: const [
-              DropdownMenuItem(value: 'FIJA', child: Text('FIJA')),
+              DropdownMenuItem(value: 'SIMPLE', child: Text('SIMPLE')),
               DropdownMenuItem(value: 'TANDEM', child: Text('TANDEM')),
             ],
-            onChanged: (val) => type = val ?? 'FIJA',
+            onChanged: (val) => type = val ?? 'SIMPLE',
             decoration: const InputDecoration(labelText: 'Tipo'),
           ),
         ],

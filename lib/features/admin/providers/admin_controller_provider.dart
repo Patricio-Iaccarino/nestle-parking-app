@@ -58,25 +58,21 @@ class AdminController extends StateNotifier<AdminState> {
 
   AdminController(this._repository) : super(AdminState());
 
-  // --- 🔹 ESTABLISHMENTS ---
+  // ---ESTABLISHMENTS ---
   Future<void> loadEstablishmentsAndAllUsers() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // Cargar establecimientos y usuarios en paralelo para más eficiencia
       final establishmentsFuture = _repository.getAllEstablishments();
-      final usersFuture = _repository
-          .getAllUsers(); // Asume que este método existe en el repo
+      final usersFuture = _repository.getAllUsers();
 
-      // Esperamos a que ambas consultas terminen
       final results = await Future.wait([establishmentsFuture, usersFuture]);
 
-      // Asignamos los resultados al estado
       final establishments = results[0] as List<Establishment>;
       final users = results[1] as List<AppUser>;
 
       state = state.copyWith(
         establishments: establishments,
-        users: users, // ✨ Guardamos TODOS los usuarios en el estado
+        users: users,
         isLoading: false,
       );
     } catch (e) {
@@ -111,7 +107,7 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // --- 🔹 DEPARTMENTS ---
+  // --- DEPARTMENTS ---
   Future<void> loadDepartments(String establishmentId) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -153,7 +149,7 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // --- 🔹 PARKING SPOTS ---
+  // --- PARKING SPOTS ---
   Future<void> loadParkingSpots(String departmentId) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -194,7 +190,7 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // --- 🔹 USERS ---
+  // --- USERS ---
   Future<void> loadUsers(String departmentId) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -227,7 +223,6 @@ class AdminController extends StateNotifier<AdminState> {
 
       await loadUsers(user.departmentId);
     } on FirebaseAuthException catch (e) {
-      // Manejamos errores comunes de Auth, como un email que ya existe
       if (e.code == 'email-already-in-use') {
         state = state.copyWith(
           error: 'El correo electrónico ya está registrado.',
@@ -242,7 +237,6 @@ class AdminController extends StateNotifier<AdminState> {
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
     } finally {
-      // Nos aseguramos de quitar el estado de 'cargando' al final
       state = state.copyWith(isLoading: false);
     }
   }
@@ -273,7 +267,7 @@ class AdminController extends StateNotifier<AdminState> {
         role: 'admin',
         establishmentId: establishmentId,
       );
-      // Opcional: recargar la lista de usuarios para reflejar el cambio
+
       state = state.copyWith(isLoading: true);
       await loadUsersForEstablishment(establishmentId);
       state = state.copyWith(isLoading: false);
@@ -299,7 +293,6 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // Obtener todos los usuarios
   Future<List<AppUser>> loadAllUsers() async {
     return await _repository.getAllUsers();
   }
@@ -312,63 +305,70 @@ class AdminController extends StateNotifier<AdminState> {
     return await _repository.getAllUsers();
   }
 
-  // Dentro de la clase AdminController
-
   Future<void> searchUsers(String query) async {
     state = state.copyWith(isLoading: true, searchResults: []);
     try {
       final q = query.trim().toLowerCase();
 
-      // Si el campo está vacío, limpiamos resultados
       if (q.isEmpty) {
         state = state.copyWith(isLoading: false);
         return;
       }
 
-      // Obtenemos todos los usuarios desde Firestore
       final allUsers = await _repository.getAllUsers();
 
-      // 🔹 Filtramos solo los que tienen rol "admin" (ya normalizado en AppUser)
       final adminUsers = allUsers.where(
         (user) => user.role.toLowerCase() == 'admin',
       );
 
-      // 🔹 Aplicamos el filtro de búsqueda (por nombre o email)
       final filteredUsers = adminUsers.where((user) {
         final name = user.displayName.toLowerCase();
         final email = user.email.toLowerCase();
         return name.contains(q) || email.contains(q);
       }).toList();
 
-      // Log para debug
-      print('🔍 Admins encontrados con "$query": ${filteredUsers.length}');
-      for (var u in filteredUsers) {
-        print('   → ${u.email} (${u.role})');
-      }
-
-      // Actualizamos el estado con los resultados filtrados
       state = state.copyWith(searchResults: filteredUsers, isLoading: false);
     } catch (e) {
-      print('❌ ERROR en searchUsers: $e');
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
-  // --- 🔹 RESERVATIONS ---
-  // REEMPLAZA tu método 'loadReservations' con este:
+
+  // ---RESERVATIONS ---
   Future<void> loadReservations(
     String establishmentId, {
     DateTime? date,
   }) async {
     state = state.copyWith(isLoading: true, spotReleases: []);
     try {
-      // ✨ ¡MUCHO MÁS LIMPIO!
-      // Ahora solo llamamos al repositorio para que haga el trabajo sucio.
       final releases = await _repository.getReservations(
         establishmentId,
         date: date,
       );
 
       state = state.copyWith(spotReleases: releases, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+
+  Future<void> loadDashboardData(String establishmentId) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      await Future.wait([
+        loadDepartments(establishmentId),
+
+        _repository.getParkingSpotsByEstablishment(establishmentId).then((
+          spots,
+        ) {
+          state = state.copyWith(parkingSpots: spots);
+        }),
+
+        loadReservations(establishmentId, date: DateTime.now()),
+
+        loadUsersForEstablishment(establishmentId),
+      ]);
+
+      state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }

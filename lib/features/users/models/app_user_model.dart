@@ -17,6 +17,18 @@ class AppUser {
     required this.vehiclePlates,
   });
 
+  factory AppUser.empty() {
+    return AppUser(
+      id: '',
+      displayName: 'Usuario Desconocido',
+      email: '',
+      role: '',
+      establishmentId: '',
+      departmentId: '',
+      vehiclePlates: [],
+    );
+  }
+
   factory AppUser.fromMap(Map<String, dynamic> data, String documentId) {
     // --- Normalizamos el campo role (puede ser String o List) ---
     String normalizeRole(dynamic rawRole) {

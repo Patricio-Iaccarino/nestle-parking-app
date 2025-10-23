@@ -109,7 +109,6 @@ class AdminRepository {
         .toList();
   }
 
-  // Devuelve todos los usuarios con rol TITULAR
   Future<List<AppUser>> getAllTitularUsers() async {
     final snapshot = await _firestore
         .collection('users')
@@ -160,23 +159,16 @@ class AdminRepository {
         .toList();
   }
 
-  // En la clase AdminRepository (admin_repository.dart)
-
-  // ... (después de tus otros métodos como deleteUser, etc.)
-
   // --- 🔹 RESERVATIONS (NUEVO) ---
   Future<List<SpotRelease>> getReservations(
     String establishmentId, {
     DateTime? date,
   }) async {
     try {
-      // 1. Inicia la consulta
-      Query query =
-          _firestore // Asumo que se llama _firestore
-              .collection('spotReleases')
-              .where('establishmentId', isEqualTo: establishmentId);
+      Query query = _firestore
+          .collection('spotReleases')
+          .where('establishmentId', isEqualTo: establishmentId);
 
-      // 2. Si se provee una fecha, filtra por ese día
       if (date != null) {
         final startOfDay = DateTime(date.year, date.month, date.day);
         final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -185,10 +177,8 @@ class AdminRepository {
             .where('releaseDate', isLessThanOrEqualTo: endOfDay);
       }
 
-      // 3. Ejecuta y transforma los datos
       final snapshot = await query.get();
 
-      // ✨ ¡USA EL 'fromMap' QUE CREAMOS!
       return snapshot.docs.map((doc) {
         return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       }).toList();
@@ -196,5 +186,17 @@ class AdminRepository {
       print('Error al obtener reservaciones: $e');
       throw Exception('No se pudieron cargar las reservaciones.');
     }
+  }
+
+  Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
+    String establishmentId,
+  ) async {
+    final snapshot = await _firestore
+        .collection('parkingSpots')
+        .where('establishmentId', isEqualTo: establishmentId)
+        .get();
+    return snapshot.docs
+        .map((doc) => ParkingSpot.fromMap(doc.data(), doc.id))
+        .toList();
   }
 }

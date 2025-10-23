@@ -39,7 +39,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/dashboard',
-            builder: (context, state) => const Dashboard(),
+            builder: (context, state) => const DashboardScreen(),
           ),
           GoRoute(
             path: '/establishments',
@@ -63,11 +63,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               return ParkingSpotsScreen(
                 establishmentId: establishmentId,
                 departmentId: departmentId,
+                departmentName:
+                    state.uri.queryParameters['departmentName'] ??
+                    'Departamento',
               );
             },
           ),
           GoRoute(
-         
             path:
                 '/establishments/:establishmentId/departments/:departmentId/users',
             builder: (context, state) {

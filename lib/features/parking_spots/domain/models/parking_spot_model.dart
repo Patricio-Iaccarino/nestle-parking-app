@@ -23,7 +23,7 @@ class ParkingSpot {
       id: documentId,
       spotNumber: data['spotNumber'] ?? '',
       floor: data['floor'] ?? 0,
-      type: data['type'] ?? 'FIJA',
+      type: data['type'] ?? 'SIMPLE',
       establishmentId: data['establishmentId'] ?? '',
       departmentId: data['departmentId'] ?? '',
       assignedUserId: data['assignedUserId'],

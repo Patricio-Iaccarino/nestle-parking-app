@@ -48,15 +48,15 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ? const Center(child: Text('No hay departamentos registrados.'))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
+              
               child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Nombre')),
-                  DataColumn(label: Text('Descripción')),
-                  DataColumn(label: Text('Acciones')),
+                columns:  [
+                  DataColumn(label: Text('Nombre'), headingRowAlignment: MainAxisAlignment.center),
+                  DataColumn(label: Text('Descripción'), headingRowAlignment: MainAxisAlignment.center),
+                  DataColumn(label: Text('Acciones'), headingRowAlignment: MainAxisAlignment.center),
                 ],
                 rows: state.departments.map((dept) {
                   return DataRow(
-
                     cells: [
                       DataCell(Text(dept.name)),
                       DataCell(Text(dept.description ?? '')),
@@ -67,7 +67,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               icon: const Icon(Icons.group),
                               tooltip: 'Gestionar Usuarios',
                               onPressed: () {
-                                context.go(
+                                context.push(
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
                                 );
                               },
@@ -79,6 +79,18 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                                   _showEditDialog(context, controller, dept),
                             ),
                             IconButton(
+                              icon: const Icon(
+                                Icons.directions_car_filled_outlined,
+                              ),
+                              tooltip: 'Ver Cocheras',
+                              onPressed: () {
+                                context.push(
+                                  '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
+                                );
+                              },
+                            ),
+
+                            IconButton(
                               icon: const Icon(Icons.delete),
                               tooltip: 'Eliminar Departamento',
                               color: Colors.red,
@@ -89,13 +101,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                         ),
                       ),
                     ],
-                    onSelectChanged: (isSelected) {
-                      if (isSelected ?? false) {
-                        context.go(
-                          '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
-                        );
-                      }
-                    },
                   );
                 }).toList(),
               ),

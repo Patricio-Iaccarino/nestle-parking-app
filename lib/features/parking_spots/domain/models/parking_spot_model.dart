@@ -6,7 +6,7 @@ class ParkingSpot {
   final String establishmentId;
   final String departmentId;
   final String? assignedUserId;
-  final String? assignedUserName; 
+  final String? assignedUserName;
   ParkingSpot({
     required this.id,
     required this.spotNumber,
@@ -45,7 +45,7 @@ class ParkingSpot {
 
   ParkingSpot copyWith({
     String? id,
-    String? spotNumber,
+    String? spotNumber, 
     int? floor,
     String? type,
     String? establishmentId,

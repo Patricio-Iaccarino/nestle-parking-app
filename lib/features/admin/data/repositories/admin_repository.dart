@@ -81,8 +81,15 @@ class AdminRepository {
   }
 
   Future<void> createParkingSpot(ParkingSpot spot) async {
+    // 1. Pide a Firestore que genere una referencia con un ID nuevo
     final docRef = _firestore.collection('parkingSpots').doc();
-    await docRef.set(spot.copyWith(id: docRef.id).toMap());
+
+    // 2. Usa copyWith para crear un nuevo objeto 'spot' con ese ID
+    //    (Asumo que tu modelo ParkingSpot tiene 'copyWith' y 'toMap' como los otros)
+    final spotWithId = spot.copyWith(id: docRef.id);
+
+    // 3. Guarda el objeto con el ID correcto
+    await docRef.set(spotWithId.toMap());
   }
 
   Future<void> updateParkingSpot(ParkingSpot spot) async {

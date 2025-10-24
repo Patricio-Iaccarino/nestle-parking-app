@@ -58,13 +58,12 @@ class AdminController extends StateNotifier<AdminState> {
 
   AdminController(this._repository) : super(AdminState());
 
-  // ---ESTABLISHMENTS ---
+  // --- ESTABLISHMENTS ---
   Future<void> loadEstablishmentsAndAllUsers() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final establishmentsFuture = _repository.getAllEstablishments();
       final usersFuture = _repository.getAllUsers();
-
       final results = await Future.wait([establishmentsFuture, usersFuture]);
 
       final establishments = results[0] as List<Establishment>;
@@ -111,9 +110,7 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> loadDepartments(String establishmentId) async {
     state = state.copyWith(isLoading: true);
     try {
-      final result = await _repository.getDepartmentsByEstablishment(
-        establishmentId,
-      );
+      final result = await _repository.getDepartmentsByEstablishment(establishmentId);
       state = state.copyWith(departments: result, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
@@ -153,9 +150,7 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> loadParkingSpots(String departmentId) async {
     state = state.copyWith(isLoading: true);
     try {
-      final result = await _repository.getParkingSpotsByDepartment(
-        departmentId,
-      );
+      final result = await _repository.getParkingSpotsByDepartment(departmentId);
       state = state.copyWith(parkingSpots: result, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
@@ -204,23 +199,15 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> createUser(AppUser user) async {
     state = state.copyWith(isLoading: true);
     try {
-      final tempPassword =
-          'temporaryPassword_${DateTime.now().millisecondsSinceEpoch}';
-
-      UserCredential userCredential = await _auth
-          .createUserWithEmailAndPassword(
-            email: user.email,
-            password: tempPassword,
-          );
-
+      final tempPassword = 'temporaryPassword_${DateTime.now().millisecondsSinceEpoch}';
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: user.email,
+        password: tempPassword,
+      );
       final newUserId = userCredential.user!.uid;
-
       await _auth.sendPasswordResetEmail(email: user.email);
-
       final userWithId = user.copyWith(id: newUserId);
-
       await _repository.createUser(userWithId);
-
       await loadUsers(user.departmentId);
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -267,7 +254,6 @@ class AdminController extends StateNotifier<AdminState> {
         role: 'admin',
         establishmentId: establishmentId,
       );
-
       state = state.copyWith(isLoading: true);
       await loadUsersForEstablishment(establishmentId);
       state = state.copyWith(isLoading: false);
@@ -279,9 +265,7 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> loadUsersForEstablishment(String establishmentId) async {
     state = state.copyWith(isLoading: true);
     try {
-      final departments = await _repository.getDepartmentsByEstablishment(
-        establishmentId,
-      );
+      final departments = await _repository.getDepartmentsByEstablishment(establishmentId);
       List<AppUser> allUsers = [];
       for (var dept in departments) {
         final users = await _repository.getUsersByDepartment(dept.id);
@@ -293,18 +277,31 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  Future<List<AppUser>> loadAllUsers() async {
-    return await _repository.getAllUsers();
+  // ✅ CORREGIDO: Usuarios del establecimiento actual (filtrado + nombres)
+  Future<void> loadUsersForCurrentEstablishment(String establishmentId) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final departments = await _repository.getDepartmentsByEstablishment(establishmentId);
+      final List<AppUser> allUsers = [];
+      for (final dept in departments) {
+        final users = await _repository.getUsersByDepartment(dept.id);
+        allUsers.addAll(users);
+      }
+
+      final parkingSpots = await _repository.getParkingSpotsByEstablishment(establishmentId);
+
+      state = state.copyWith(
+        users: allUsers,
+        departments: departments,
+        parkingSpots: parkingSpots,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
   }
 
-  Future<List<AppUser>> getAllTitularUsers() async {
-    return await _repository.getAllTitularUsers();
-  }
-
-  Future<List<AppUser>> getAllUsers() async {
-    return await _repository.getAllUsers();
-  }
-
+  // ✅ Restaurado: Método usado por assign_admin_screen
   Future<void> searchUsers(String query) async {
     state = state.copyWith(isLoading: true, searchResults: []);
     try {
@@ -316,10 +313,7 @@ class AdminController extends StateNotifier<AdminState> {
       }
 
       final allUsers = await _repository.getAllUsers();
-
-      final adminUsers = allUsers.where(
-        (user) => user.role.toLowerCase() == 'admin',
-      );
+      final adminUsers = allUsers.where((user) => user.role.toLowerCase() == 'admin');
 
       final filteredUsers = adminUsers.where((user) {
         final name = user.displayName.toLowerCase();
@@ -333,18 +327,14 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // ---RESERVATIONS ---
+  // --- RESERVATIONS ---
   Future<void> loadReservations(
     String establishmentId, {
     DateTime? date,
   }) async {
     state = state.copyWith(isLoading: true, spotReleases: []);
     try {
-      final releases = await _repository.getReservations(
-        establishmentId,
-        date: date,
-      );
-
+      final releases = await _repository.getReservations(establishmentId, date: date);
       state = state.copyWith(spotReleases: releases, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
@@ -356,18 +346,12 @@ class AdminController extends StateNotifier<AdminState> {
     try {
       await Future.wait([
         loadDepartments(establishmentId),
-
-        _repository.getParkingSpotsByEstablishment(establishmentId).then((
-          spots,
-        ) {
+        _repository.getParkingSpotsByEstablishment(establishmentId).then((spots) {
           state = state.copyWith(parkingSpots: spots);
         }),
-
         loadReservations(establishmentId, date: DateTime.now()),
-
         loadUsersForEstablishment(establishmentId),
       ]);
-
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
@@ -377,6 +361,6 @@ class AdminController extends StateNotifier<AdminState> {
 
 final adminControllerProvider =
     StateNotifierProvider<AdminController, AdminState>((ref) {
-      final repo = ref.watch(adminRepositoryProvider);
-      return AdminController(repo);
-    });
+  final repo = ref.watch(adminRepositoryProvider);
+  return AdminController(repo);
+});

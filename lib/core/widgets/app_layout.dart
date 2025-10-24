@@ -44,33 +44,28 @@ class AppLayout extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Cocheras Nestlé'),
         actions: [
-         
-        if (user != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: Center(
-              child: Chip(
-              
-                avatar: CircleAvatar(
-                  backgroundColor: Colors.blueGrey.shade700,
-                  child: Text(
+          if (user != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Center(
+                child: Chip(
+                  avatar: CircleAvatar(
+                    backgroundColor: Colors.blueGrey.shade700,
+                    child: Text(
+                      user.displayName.isNotEmpty
+                          ? user.displayName[0].toUpperCase()
+                          : 'U',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  label: Text(
                     user.displayName.isNotEmpty
-                        ? user.displayName[0].toUpperCase()
-                        : 'U', 
-                    style: const TextStyle(color: Colors.white),
+                        ? user.displayName
+                        : user.email,
                   ),
                 ),
-               
-                label: Text(
-                  user.displayName.isNotEmpty
-                      ? user.displayName
-                      : user.email, 
-                ),
-               
               ),
             ),
-          ),
-   
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
@@ -84,10 +79,12 @@ class AppLayout extends ConsumerWidget {
             _SuperAdminNavigationRail()
           else
             _AdminNavigationRail(),
-
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: Padding(padding: const EdgeInsets.all(16.0), child: child),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: child,
+            ),
           ),
         ],
       ),
@@ -95,11 +92,14 @@ class AppLayout extends ConsumerWidget {
   }
 }
 
+// ======================================================
+// SUPERADMIN NAVIGATION RAIL
+// ======================================================
+
 class _SuperAdminNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    // Para el superadmin, el índice siempre será 0 porque solo hay una opción
     final selectedIndex = location.startsWith('/establishments') ? 0 : 0;
 
     return NavigationRail(
@@ -118,13 +118,18 @@ class _SuperAdminNavigationRail extends StatelessWidget {
   }
 }
 
+// ======================================================
+// ADMIN NAVIGATION RAIL
+// ======================================================
+
 class _AdminNavigationRail extends ConsumerWidget {
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/dashboard')) return 0;
     if (location.startsWith('/departments')) return 1;
-    if (location.startsWith('/reservations')) return 2;
-    if (location.startsWith('/reports')) return 3;
+    if (location.startsWith('/users')) return 2; // 👈 Nuevo
+    if (location.startsWith('/reservations')) return 3;
+    if (location.startsWith('/reports')) return 4;
     return 0;
   }
 
@@ -136,22 +141,29 @@ class _AdminNavigationRail extends ConsumerWidget {
       case 0:
         context.go('/dashboard');
         break;
+
       case 1: // --- DEPARTAMENTOS ---
         if (establishmentId != null) {
           context.go('/departments/$establishmentId');
         } else {
-          // Opcional: Mostrar un error si por alguna razón el admin no tiene ID
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Error: No se encontró el ID del establecimiento.'),
+              content: Text(
+                  'Error: No se encontró el ID del establecimiento.'),
             ),
           );
         }
         break;
-      case 2:
+
+      case 2: // --- USUARIOS ---
+        context.go('/users');
+        break;
+
+      case 3: // --- RESERVAS ---
         context.go('/reservations');
         break;
-      case 3:
+
+      case 4: // --- REPORTES ---
         context.go('/reports');
         break;
     }
@@ -159,11 +171,10 @@ class _AdminNavigationRail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✨ Añadido WidgetRef
     return NavigationRail(
       selectedIndex: _getSelectedIndex(context),
       onDestinationSelected: (index) =>
-          _onDestinationSelected(context, ref, index), // ✨ Pasamos ref
+          _onDestinationSelected(context, ref, index),
       labelType: NavigationRailLabelType.all,
       destinations: const [
         NavigationRailDestination(
@@ -173,6 +184,10 @@ class _AdminNavigationRail extends ConsumerWidget {
         NavigationRailDestination(
           icon: Icon(Icons.apartment),
           label: Text('Departamentos'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.people_alt_rounded), // 👈 NUEVO
+          label: Text('Usuarios'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.book_online),

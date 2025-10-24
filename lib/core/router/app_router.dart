@@ -8,6 +8,7 @@ import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/
 import 'package:cocheras_nestle_web/features/reservations/presentation/screens/reservations_screen.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/login_screen.dart';
 import 'package:cocheras_nestle_web/features/users/presentation/users_screen.dart';
+import 'package:cocheras_nestle_web/features/users/presentation/global_users_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -33,66 +34,106 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) => AppLayout(child: child),
         routes: [
+          // ======================================================
+          // DASHBOARD
+          // ======================================================
           GoRoute(
             path: '/dashboard',
             builder: (context, state) => const DashboardScreen(),
           ),
+
+          // ======================================================
+          // ESTABLECIMIENTOS (solo superadmin)
+          // ======================================================
           GoRoute(
             path: '/establishments',
             builder: (context, state) => const EstablishmentsScreen(),
           ),
+
+          // ======================================================
+          // DEPARTAMENTOS
+          // ======================================================
           GoRoute(
             path: '/departments/:establishmentId',
             builder: (context, state) {
-              final establishmentId = state.pathParameters['establishmentId']!;
+              final establishmentId =
+                  state.pathParameters['establishmentId']!;
               return DepartmentsScreen(establishmentId: establishmentId);
             },
           ),
 
+          // ======================================================
+          // COCHERAS
+          // ======================================================
           GoRoute(
             path:
                 '/establishments/:establishmentId/departments/:departmentId/spots',
             builder: (context, state) {
-              final establishmentId = state.pathParameters['establishmentId']!;
+              final establishmentId =
+                  state.pathParameters['establishmentId']!;
               final departmentId = state.pathParameters['departmentId']!;
-              // Pasamos ambos IDs a la pantalla
               return ParkingSpotsScreen(
                 establishmentId: establishmentId,
                 departmentId: departmentId,
                 departmentName:
                     state.uri.queryParameters['departmentName'] ??
-                    'Departamento',
+                        'Departamento',
               );
             },
           ),
+
+          // ======================================================
+          // USUARIOS POR DEPARTAMENTO
+          // ======================================================
           GoRoute(
             path:
                 '/establishments/:establishmentId/departments/:departmentId/users',
             builder: (context, state) {
-              // Extraemos ambos parámetros de la URL
-              final establishmentId = state.pathParameters['establishmentId']!;
+              final establishmentId =
+                  state.pathParameters['establishmentId']!;
               final departmentId = state.pathParameters['departmentId']!;
-
-              // Se los pasamos a la pantalla de Usuarios
               return UsersScreen(
                 establishmentId: establishmentId,
                 departmentId: departmentId,
               );
             },
           ),
+
+          // ======================================================
+          // NUEVO: USUARIOS (vista global del admin)
+          // ======================================================
+          GoRoute(
+            path: '/users',
+            builder: (context, state) => const GlobalUsersScreen(),
+            redirect: (context, state) {
+              // Solo permite acceso a admins
+              if (user == null || user.role != 'admin') return '/dashboard';
+              return null;
+            },
+          ),
+
+          // ======================================================
+          // RESERVAS
+          // ======================================================
           GoRoute(
             path: '/reservations',
             builder: (context, state) => const ReservationsScreen(),
-            redirect: (context, state) =>
-                (user == null ||
+            redirect: (context, state) => (user == null ||
                     (user.role != 'superadmin' && user.role != 'admin'))
                 ? '/dashboard'
                 : null,
           ),
+
+          // ======================================================
+          // REPORTES
+          // ======================================================
           GoRoute(
             path: '/reports',
             builder: (context, state) => const ReportsScreen(),

@@ -150,6 +150,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                 role: role,
                 departmentId: widget.departmentId,
                 establishmentId: widget.establishmentId,
+                establishmentName: widget.establishmentId,
                 vehiclePlates: [],
               );
               await controller.createUser(

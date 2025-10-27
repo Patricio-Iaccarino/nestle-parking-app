@@ -48,12 +48,21 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ? const Center(child: Text('No hay departamentos registrados.'))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              
+
               child: DataTable(
-                columns:  [
-                  DataColumn(label: Text('Nombre'), headingRowAlignment: MainAxisAlignment.center),
-                  DataColumn(label: Text('Descripción'), headingRowAlignment: MainAxisAlignment.center),
-                  DataColumn(label: Text('Acciones'), headingRowAlignment: MainAxisAlignment.center),
+                columns: [
+                  DataColumn(
+                    label: Text('Nombre'),
+                    headingRowAlignment: MainAxisAlignment.center,
+                  ),
+                  DataColumn(
+                    label: Text('Descripción'),
+                    headingRowAlignment: MainAxisAlignment.center,
+                  ),
+                  DataColumn(
+                    label: Text('Acciones'),
+                    headingRowAlignment: MainAxisAlignment.center,
+                  ),
                 ],
                 rows: state.departments.map((dept) {
                   return DataRow(
@@ -73,12 +82,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: 'Editar Departamento',
-                              onPressed: () =>
-                                  _showEditDialog(context, controller, dept),
-                            ),
-                            IconButton(
                               icon: const Icon(
                                 Icons.directions_car_filled_outlined,
                               ),
@@ -88,6 +91,12 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
                                 );
                               },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              tooltip: 'Editar Departamento',
+                              onPressed: () =>
+                                  _showEditDialog(context, controller, dept),
                             ),
 
                             IconButton(

@@ -51,7 +51,8 @@ class ParkingSpot {
     String? establishmentId,
     String? departmentId,
     String? assignedUserId,
-    String? assignedUserName, // <- agregado
+    String? assignedUserName,
+    bool clearAssignedUser = false,
   }) {
     return ParkingSpot(
       id: id ?? this.id,
@@ -60,7 +61,9 @@ class ParkingSpot {
       type: type ?? this.type,
       establishmentId: establishmentId ?? this.establishmentId,
       departmentId: departmentId ?? this.departmentId,
-      assignedUserId: assignedUserId ?? this.assignedUserId,
+      assignedUserId: clearAssignedUser
+          ? null
+          : (assignedUserId ?? this.assignedUserId),
       assignedUserName: assignedUserName ?? this.assignedUserName,
     );
   }

@@ -26,6 +26,7 @@ class AuthRepository {
         displayName: '',
         establishmentId: '',
         departmentId: '',
+        establishmentName: '',
         vehiclePlates: [],
       );
       await _firestore.collection('users').doc(uid).set(newUser.toMap());

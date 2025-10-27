@@ -47,7 +47,7 @@ class LoginScreen extends ConsumerWidget {
                     height: 100,
                     width: 100,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF005792),
+                      color: const Color(0xFFD91E28),
                       shape: BoxShape.circle,
                     ),
                     child: const Center(
@@ -64,10 +64,7 @@ class LoginScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   const Text(
                     'Cocheras Nestlé',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const Text(

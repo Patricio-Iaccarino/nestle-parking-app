@@ -9,7 +9,7 @@ class AppTheme {
       brightness: isDark ? Brightness.dark : Brightness.light,
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFF005792), // Azul corporativo de Nestlé
-        primary: const Color(0xFF005792), // Azul para botones y appbars
+        primary: const Color(0xFF005792), 
         secondary: const Color(
           0xFFD91E28,
         ), // Rojo de Nestlé para acentos (ej. botones de borrar)
@@ -28,26 +28,19 @@ class AppTheme {
       ),
       // Define el estilo de los campos de texto
       inputDecorationTheme: InputDecorationTheme(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
-      
+
       cardTheme: CardThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 4,
         margin: const EdgeInsets.all(8),
       ),
 
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF005792),
-        foregroundColor: Colors.white,
-      ),
-
-   
-
       useMaterial3: true,
-
-
     );
   }
 }

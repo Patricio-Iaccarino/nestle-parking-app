@@ -153,9 +153,31 @@ class AdminRepository {
     required String role,
     required String establishmentId,
   }) async {
+    String establishmentName = 'Nombre No Encontrado'; // Valor por defecto
+
+    try {
+      final establishmentDoc = await _firestore
+          .collection('establishments')
+          .doc(establishmentId)
+          .get();
+
+      if (establishmentDoc.exists) {
+        establishmentName =
+            establishmentDoc.data()?['name'] ?? establishmentName;
+        // ------------------------------------
+      } else {
+        print('   ❌ Establecimiento NO encontrado con ID: $establishmentId');
+      }
+      // --------------------------------------------------
+    } catch (e) {
+      print('   ❗️ ERROR buscando nombre de establecimiento: $e');
+      // ---------------------------------------------
+    }
+
     await _firestore.collection('users').doc(userId).update({
       'role': role,
       'establishmentId': establishmentId,
+      'establishmentName': establishmentName,
     });
   }
 

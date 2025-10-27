@@ -39,10 +39,23 @@ class AppLayout extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
     final isSuperAdmin = authState.value?.role == 'superadmin';
     final user = authState.value;
+    final userRole = user?.role ?? ''; // Rol con valor seguro
+    final establishmentName =
+        user?.establishmentName ?? ''; // Nombre del establecimiento
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cocheras Nestlé'),
+        title: Text(
+          // Si es admin Y el nombre del establecimiento no está vacío
+          (userRole == 'admin' && establishmentName.isNotEmpty)
+              // Muestra el nombre compuesto
+              ? 'Cocheras Nestlé - $establishmentName'
+              // Si no, muestra el título genérico
+              : 'Cocheras Nestlé',
+          overflow: TextOverflow.ellipsis, // Evita desbordes
+        ),
+        backgroundColor: Color(0xFFD91E28),
+        foregroundColor: Colors.white,
         actions: [
           if (user != null)
             Padding(
@@ -59,9 +72,7 @@ class AppLayout extends ConsumerWidget {
                     ),
                   ),
                   label: Text(
-                    user.displayName.isNotEmpty
-                        ? user.displayName
-                        : user.email,
+                    user.displayName.isNotEmpty ? user.displayName : user.email,
                   ),
                 ),
               ),
@@ -81,10 +92,7 @@ class AppLayout extends ConsumerWidget {
             _AdminNavigationRail(),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: child,
-            ),
+            child: Padding(padding: const EdgeInsets.all(16.0), child: child),
           ),
         ],
       ),
@@ -148,8 +156,7 @@ class _AdminNavigationRail extends ConsumerWidget {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                  'Error: No se encontró el ID del establecimiento.'),
+              content: Text('Error: No se encontró el ID del establecimiento.'),
             ),
           );
         }

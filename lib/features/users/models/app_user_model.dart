@@ -4,6 +4,7 @@ class AppUser {
   final String displayName;
   final String role;
   final String establishmentId;
+  final String establishmentName;
   final String departmentId;
   final List<String> vehiclePlates;
 
@@ -14,6 +15,7 @@ class AppUser {
     required this.role,
     required this.establishmentId,
     required this.departmentId,
+    required this.establishmentName,
     required this.vehiclePlates,
   });
 
@@ -25,6 +27,7 @@ class AppUser {
       role: '',
       establishmentId: '',
       departmentId: '',
+      establishmentName: '',
       vehiclePlates: [],
     );
   }
@@ -56,6 +59,7 @@ class AppUser {
       role: normalizeRole(data['role']),
       establishmentId: normalizeEstablishment(data['establishmentId']),
       departmentId: (data['departmentId'] ?? '').toString(),
+      establishmentName: data['establishmentName'] ?? 'Establecimiento Desconocido',
       vehiclePlates: List<String>.from(data['vehiclePlates'] ?? []),
     );
   }
@@ -66,6 +70,7 @@ class AppUser {
       'displayName': displayName,
       'role': role,
       'establishmentId': establishmentId,
+      'establishmentName': establishmentName,
       'departmentId': departmentId,
       'vehiclePlates': vehiclePlates,
     };
@@ -77,6 +82,7 @@ class AppUser {
     String? displayName,
     String? role,
     String? establishmentId,
+    String? establishmentName,
     String? departmentId,
     List<String>? vehiclePlates,
   }) {
@@ -86,6 +92,7 @@ class AppUser {
       displayName: displayName ?? this.displayName,
       role: role ?? this.role,
       establishmentId: establishmentId ?? this.establishmentId,
+      establishmentName: establishmentName ?? this.establishmentName,
       departmentId: departmentId ?? this.departmentId,
       vehiclePlates: vehiclePlates ?? this.vehiclePlates,
     );

@@ -38,9 +38,8 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     final controller = ref.read(adminControllerProvider.notifier);
     final parkingSpots = state.parkingSpots;
     final users = state.users;
-    String departmentName = 'Cocheras'; // Un título por defecto
+    String departmentName = 'Cocheras';
     try {
-      
       final dept = state.departments.firstWhere(
         (d) => d.id == widget.departmentId,
       );
@@ -99,6 +98,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                           email: '',
                           role: '',
                           establishmentId: '',
+                          establishmentName: '',
                           departmentId: '',
                           vehiclePlates: [],
                         ),
@@ -141,62 +141,110 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
 
   // parking_spots_screen.dart
 
-  Future<void> _showAssignUserDialog(
-    BuildContext context,
-    dynamic controller,
-    ParkingSpot spot,
-    List<AppUser> users,
-  ) async {
-    // Hacemos la variable local explícitamente nullable
-    String? selectedUserId = spot.assignedUserId;
+// En ParkingSpotsScreen.dart
 
-   
-    final assignableUsers = users.where((u) => u.role == 'TITULAR').toList();
+Future<void> _showAssignUserDialog(
+  BuildContext context,
+  dynamic controller, // Asumo que es tu AdminController
+  ParkingSpot spot,
+  List<AppUser> allUsersInDepartment, // Recibe la lista completa del depto
+) async {
+  String? selectedUserId = spot.assignedUserId; // El ID del usuario actualmente asignado
 
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Asignar cochera a Titular'),
-        content: DropdownButtonFormField<String?>(
-          // Permitimos que el valor sea null
-          initialValue: selectedUserId, // ✨ CORREGIDO: Usamos el valor directamente
-          hint: const Text('Seleccionar titular'),
-          items: [
-            // Opción para desasignar la cochera
-            const DropdownMenuItem(
-              value: null, // El valor para "Sin asignar" es null
-              child: Text('Sin asignar'),
-            ),
-            // Mapeamos el resto de los usuarios
-            ...assignableUsers.map(
-              (u) => DropdownMenuItem(value: u.id, child: Text(u.displayName)),
-            ),
-          ],
-          onChanged: (val) {
-            selectedUserId = val;
-          },
-          decoration: const InputDecoration(labelText: 'Usuario Titular'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedSpot = spot.copyWith(
-                // Si selectedUserId es null, guardamos null. Si no, guardamos el ID.
-                assignedUserId: selectedUserId,
-              );
-              await controller.updateParkingSpot(updatedSpot);
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
+  // Usuarios que PUEDEN ser asignados (solo Titulares del depto)
+  final assignableUsers = allUsersInDepartment
+      .where((u) => u.role == 'TITULAR')
+      .toList();
+
+  // Construye la lista de opciones (items) para el Dropdown
+  List<DropdownMenuItem<String?>> dropdownItems = [];
+
+  // Opción "Sin asignar"
+  dropdownItems.add(const DropdownMenuItem<String?>(
+    value: null, // Usamos null para "sin asignar"
+    child: Text('Sin asignar'),
+  ));
+
+  // Añade los usuarios titulares asignables
+  dropdownItems.addAll(
+    assignableUsers.map(
+      (u) => DropdownMenuItem<String?>(
+        value: u.id,
+        child: Text(u.displayName),
       ),
-    );
+    ),
+  );
+
+  // Asegúrate de que el usuario *actualmente asignado* esté en la lista,
+  // incluso si ya no es 'TITULAR' (para evitar el error).
+  if (selectedUserId != null && selectedUserId.isNotEmpty) {
+    bool alreadyIncluded = dropdownItems.any((item) => item.value == selectedUserId);
+    if (!alreadyIncluded) {
+      try {
+        // Búscalo en la lista completa del departamento
+        final currentlyAssignedUser = allUsersInDepartment.firstWhere((u) => u.id == selectedUserId);
+        dropdownItems.add(DropdownMenuItem<String?>(
+          value: currentlyAssignedUser.id,
+          // Añadimos una indicación visual
+          child: Text('${currentlyAssignedUser.displayName} (Asignado)'),
+        ));
+      } catch (e) {
+        // El usuario asignado ya no existe en la lista del departamento.
+        // Podríamos decidir desasignarlo automáticamente aquí si quisiéramos.
+        // selectedUserId = null; // Opcional: desasignar si no se encuentra
+      }
+    }
   }
+
+  // Variable temporal para manejar el cambio dentro del diálogo
+  String? tempSelectedUserId = selectedUserId;
+
+  await showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Asignar cochera a Titular'),
+      content: DropdownButtonFormField<String?>(
+        initialValue: tempSelectedUserId, // Usa la variable temporal
+        items: dropdownItems,
+        onChanged: (val) {
+          // Actualiza la variable temporal cuando el usuario elige algo
+          tempSelectedUserId = val;
+        },
+        decoration: const InputDecoration(labelText: 'Usuario Titular'),
+        selectedItemBuilder: (BuildContext context) {
+           // Muestra el texto correcto cuando una opción está seleccionada
+           return dropdownItems.map<Widget>((DropdownMenuItem<String?> item) {
+              final child = item.child;
+              if (child is Text) {
+                 // Muestra '(Sin asignar)' si el valor es null
+                 return Text(item.value == null ? '(Sin asignar)' : child.data ?? '');
+              }
+              return const Text(''); // Fallback
+           }).toList();
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            // Usa el valor final de la variable temporal al guardar
+            final updatedSpot = spot.copyWith(
+              assignedUserId: tempSelectedUserId,
+              clearAssignedUser: tempSelectedUserId == null,
+            );
+            await controller.updateParkingSpot(updatedSpot);
+            if (context.mounted) Navigator.pop(context);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+  );
+}
+}
 
   Future<void> _confirmDelete(
     BuildContext context,
@@ -228,7 +276,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       await controller.deleteParkingSpot(spotId);
     }
   }
-}
+
 
 Future<void> _showQuickAddSpotDialog(
   BuildContext context,

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
-import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
-import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
+
 
 class GlobalUsersScreen extends ConsumerStatefulWidget {
   const GlobalUsersScreen({super.key});
@@ -151,18 +150,18 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     AdminController controller,
     String userId,
   ) async {
-    bool _isDeleting = false;
+    bool isDeleting = false;
     final authUser = ref.read(authControllerProvider).value;
     final currentEstablishmentId = authUser?.establishmentId ?? '';
 
     await showDialog(
       context: context,
-      barrierDismissible: !_isDeleting,
+      barrierDismissible: !isDeleting,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
             title: const Text('Eliminar usuario'),
-            content: _isDeleting
+            content: isDeleting
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
@@ -177,7 +176,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                 : const Text(
                     '¿Estás seguro de que querés eliminar este usuario? Esta acción no se puede deshacer.',
                   ),
-            actions: _isDeleting
+            actions: isDeleting
                 ? []
                 : [
                     TextButton(
@@ -189,7 +188,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                         backgroundColor: Colors.red,
                       ),
                       onPressed: () async {
-                        setState(() => _isDeleting = true);
+                        setState(() => isDeleting = true);
                         await controller.deleteUser(userId);
 
                         // Recargamos la lista del establecimiento actual
@@ -198,7 +197,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                               currentEstablishmentId);
                         }
 
-                        setState(() => _isDeleting = false);
+                        setState(() => isDeleting = false);
                         if (context.mounted) Navigator.pop(context);
 
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -224,7 +223,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     final emailController = TextEditingController();
     String selectedRole = 'TITULAR';
     String? selectedDepartmentId;
-    bool _isSaving = false;
+    bool isSaving = false;
 
     final state = ref.read(adminControllerProvider);
     final departments = state.departments;
@@ -233,7 +232,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 
     await showDialog(
       context: context,
-      barrierDismissible: !_isSaving,
+      barrierDismissible: !isSaving,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
@@ -253,7 +252,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     decoration: const InputDecoration(labelText: 'Rol'),
                     items: const [
                       DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
@@ -266,7 +265,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   const SizedBox(height: 8),
                   if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                     DropdownButtonFormField<String>(
-                      value: selectedDepartmentId,
+                      initialValue: selectedDepartmentId,
                       decoration: const InputDecoration(labelText: 'Departamento'),
                       items: departments
                           .map((d) => DropdownMenuItem(
@@ -276,7 +275,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           .toList(),
                       onChanged: (val) => setState(() => selectedDepartmentId = val),
                     ),
-                  if (_isSaving) ...[
+                  if (isSaving) ...[
                     const SizedBox(height: 20),
                     const CircularProgressIndicator(),
                     const SizedBox(height: 12),
@@ -289,12 +288,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               ),
             ),
             actions: [
-              if (!_isSaving)
+              if (!isSaving)
                 TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancelar')),
               ElevatedButton(
-                onPressed: _isSaving
+                onPressed: isSaving
                     ? null
                     : () async {
                         if (nameController.text.trim().isEmpty ||
@@ -306,7 +305,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           return;
                         }
 
-                        setState(() => _isSaving = true);
+                        setState(() => isSaving = true);
 
                         final newUser = AppUser(
                           id: '',
@@ -314,11 +313,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           displayName: nameController.text.trim(),
                           role: selectedRole,
                           establishmentId: currentEstablishmentId,
+                          establishmentName: '',
+                          vehiclePlates: const [], 
                           departmentId:
                               (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                                   ? (selectedDepartmentId ?? '')
                                   : '',
-                          vehiclePlates: const [],
                         );
 
                         await controller.createUser(newUser);
@@ -327,7 +327,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                               currentEstablishmentId);
                         }
 
-                        setState(() => _isSaving = false);
+                        setState(() => isSaving = false);
                         if (context.mounted) Navigator.pop(context);
                       },
                 child: const Text('Guardar'),
@@ -362,7 +362,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               decoration: const InputDecoration(labelText: 'Email'),
             ),
             DropdownButtonFormField<String>(
-              value: selectedRole,
+              initialValue: selectedRole,
               items: const [
                 DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
                 DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),

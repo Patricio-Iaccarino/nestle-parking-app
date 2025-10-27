@@ -107,13 +107,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // ======================================================
-          // NUEVO: USUARIOS (vista global del admin)
+          // USUARIOS (vista global del admin)
           // ======================================================
           GoRoute(
             path: '/users',
             builder: (context, state) => const GlobalUsersScreen(),
             redirect: (context, state) {
-              // Solo permite acceso a admins
+              
               if (user == null || user.role != 'admin') return '/dashboard';
               return null;
             },

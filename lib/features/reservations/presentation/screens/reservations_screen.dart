@@ -102,7 +102,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
           // --- BARRA DE FILTROS ---
           Container(
             padding: const EdgeInsets.all(16.0),
-            color: Colors.grey.shade100,
+            
             child: Row(
               children: [
                 ElevatedButton.icon(

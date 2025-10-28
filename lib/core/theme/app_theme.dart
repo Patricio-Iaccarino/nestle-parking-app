@@ -6,20 +6,19 @@ class AppTheme {
 
   ThemeData getTheme() {
     return ThemeData(
-      brightness: isDark ? Brightness.dark : Brightness.light,
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFF005792), // Azul corporativo de Nestlé
-        primary: const Color(0xFF005792), 
+        primary: const Color(0xFF005792),
         secondary: const Color(
           0xFFD91E28,
         ), // Rojo de Nestlé para acentos (ej. botones de borrar)
-        brightness: Brightness.light,
+        brightness: isDark ? Brightness.dark : Brightness.light,
       ),
       // Define el estilo de los botones
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(
-            0xFF005792,
+            0xFFD91E28,
           ), // Botones con el azul primario
           foregroundColor: Colors.white, // Texto blanco en los botones
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

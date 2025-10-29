@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 👈 agregado
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +24,18 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       title: 'Cocheras Nestlé',
       routerConfig: router,
-      theme: AppTheme(isDark: false).getTheme(
-      ),
+      theme: AppTheme(isDark: false).getTheme(),
+      
+      // 👇 agregado para soportar DateRangePickerDialog y otros widgets con textos
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'), // Español (principal)
+        Locale('en', 'US'), // Inglés (fallback)
+      ],
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'package:cocheras_nestle_web/core/widgets/app_layout.dart';
 import 'package:cocheras_nestle_web/features/departments/presentation/screens/departments_screen.dart';
 import 'package:cocheras_nestle_web/features/establishments/presentation/screens/establishments_screen.dart';
-import 'package:cocheras_nestle_web/features/establishments/presentation/screens/reports_screen.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/dashboard/dashboard_screen.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/parking_spots_screen.dart';
@@ -11,6 +10,8 @@ import 'package:cocheras_nestle_web/features/users/presentation/users_screen.dar
 import 'package:cocheras_nestle_web/features/users/presentation/global_users_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cocheras_nestle_web/features/reports/presentation/reports_screen.dart';
+
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authControllerProvider);
@@ -132,14 +133,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // ======================================================
-          // REPORTES
-          // ======================================================
-          GoRoute(
-            path: '/reports',
-            builder: (context, state) => const ReportsScreen(),
-            redirect: (context, state) =>
-                (user?.role != 'superadmin') ? '/dashboard' : null,
-          ),
+// REPORTES (acceso para admin y superadmin)
+// ======================================================
+GoRoute(
+  path: '/reports',
+  builder: (context, state) => const ReportsScreen(),
+  redirect: (context, state) {
+    final role = user?.role;
+    if (role != 'admin' && role != 'superadmin') {
+      return '/dashboard';
+    }
+    return null;
+  },
+),
         ],
       ),
     ],

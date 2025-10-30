@@ -17,9 +17,10 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref
-          .read(adminControllerProvider.notifier)
-          .loadDepartments(widget.establishmentId);
+      final controller = ref.read(adminControllerProvider.notifier);
+      controller.loadDepartments(widget.establishmentId);
+      // Traemos también usuarios y cocheras para poder contarlos
+      controller.loadDashboardData(widget.establishmentId);
     });
   }
 
@@ -45,82 +46,83 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.departments.isEmpty
-          ? const Center(child: Text('No hay departamentos registrados.'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-
-              child: DataTable(
-                columns: [
-                  DataColumn(
-                    label: Text('Nombre'),
-                    headingRowAlignment: MainAxisAlignment.center,
-                  ),
-                  DataColumn(
-                    label: Text('Descripción'),
-                    headingRowAlignment: MainAxisAlignment.center,
-                  ),
-                  DataColumn(
-                    label: Text('Acciones'),
-                    headingRowAlignment: MainAxisAlignment.center,
-                  ),
-                ],
-                rows: state.departments.map((dept) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(dept.name)),
-                      DataCell(Text(dept.description ?? '')),
-                      DataCell(
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.group),
-                              tooltip: 'Gestionar Usuarios',
-                              onPressed: () {
-                                context.push(
-                                  '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.directions_car_filled_outlined,
-                              ),
-                              tooltip: 'Ver Cocheras',
-                              onPressed: () {
-                                context.push(
-                                  '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: 'Editar Departamento',
-                              onPressed: () =>
-                                  _showEditDialog(context, controller, dept),
-                            ),
-
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              tooltip: 'Eliminar Departamento',
-                              color: Colors.red,
-                              onPressed: () =>
-                                  _confirmDelete(context, controller, dept.id),
-                            ),
-                          ],
-                        ),
-                      ),
+              ? const Center(child: Text('No hay departamentos registrados.'))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: DataTable(
+                    columnSpacing: 28,
+                    columns: const [
+                      DataColumn(label: Text('Nombre')),
+                      DataColumn(label: Text('Descripción')),
+                      DataColumn(label: Text('Cocheras')),
+                      DataColumn(label: Text('Usuarios')),
+                      DataColumn(label: Text('Acciones')),
                     ],
-                  );
-                }).toList(),
-              ),
-            ),
+                    rows: state.departments.map((dept) {
+                      // Contar cocheras asociadas a este departamento
+                      final spotsInDept = state.parkingSpots
+                          .where((s) => s.departmentId == dept.id)
+                          .length;
+
+                      // Contar usuarios asociados a este departamento
+                      final usersInDept = state.users
+                          .where((u) => u.departmentId == dept.id)
+                          .length;
+
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(dept.name)),
+                          DataCell(Text(dept.description ?? '')),
+                          DataCell(Text(spotsInDept.toString())),
+                          DataCell(Text(usersInDept.toString())),
+                          DataCell(
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.group),
+                                  tooltip: 'Gestionar Usuarios',
+                                  onPressed: () {
+                                    context.push(
+                                      '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                      Icons.directions_car_filled_outlined),
+                                  tooltip: 'Ver Cocheras',
+                                  onPressed: () {
+                                    context.push(
+                                      '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: 'Editar Departamento',
+                                  onPressed: () => _showEditDialog(
+                                      context, controller, dept),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  tooltip: 'Eliminar Departamento',
+                                  color: Colors.red,
+                                  onPressed: () => _confirmDelete(
+                                      context, controller, dept.id),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
     );
   }
 
   Future<void> _showAddDialog(
-    BuildContext context,
-    AdminController controller,
-  ) async {
+      BuildContext context, AdminController controller) async {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
 
@@ -166,14 +168,10 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   }
 
   Future<void> _showEditDialog(
-    BuildContext context,
-    AdminController controller,
-    Department dept,
-  ) async {
+      BuildContext context, AdminController controller, Department dept) async {
     final nameController = TextEditingController(text: dept.name);
-    final descriptionController = TextEditingController(
-      text: dept.description ?? '',
-    );
+    final descriptionController =
+        TextEditingController(text: dept.description ?? '');
 
     await showDialog(
       context: context,
@@ -214,10 +212,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   }
 
   Future<void> _confirmDelete(
-    BuildContext context,
-    AdminController controller,
-    String id,
-  ) async {
+      BuildContext context, AdminController controller, String id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../application/reports_controller.dart' as controller; // 👈 prefijo evita conflicto
+import '../application/reports_controller.dart' as controller; 
 import '../domain/report_models.dart';
-import '../../../core/services/export_service.dart'; // 👈 Import del ExportService
+import '../../../core/services/export_service.dart'; 
 import 'package:intl/intl.dart';
 
 /// --------------------------------------------------------------------------
@@ -49,7 +49,7 @@ class ReportsScreen extends ConsumerWidget {
               ),
               PopupMenuItem(
                 value: 'excel',
-                child: Text('Exportar como Excel (.xlsx)'), // 👈 Nueva opción
+                child: Text('Exportar como Excel (.xlsx)'), 
               ),
             ],
           ),
@@ -181,7 +181,7 @@ class ReportsScreen extends ConsumerWidget {
 /// 🔹 Contenido dinámico del reporte según el tipo
 /// --------------------------------------------------------------------------
 class _ReportContent extends StatelessWidget {
-  final controller.ReportsState state; // 👈 usa el tipo con prefijo
+  final controller.ReportsState state; 
   const _ReportContent({required this.state});
 
   @override

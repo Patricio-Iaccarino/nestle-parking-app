@@ -1,69 +1,64 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart'; // 🔹 Para usar DateTimeRange
+import 'package:flutter/material.dart';
 import '../domain/report_models.dart';
 import '../infrastructure/reports_repository.dart';
 
-/// --------------------------------------------------------------------------
-/// 🔹 Proveedor del repositorio de reportes (acceso a Firestore)
-/// --------------------------------------------------------------------------
+// ✅ auth provider
+import '../../../features/auth/presentation/auth_controller.dart';
+
+/// ─────────────────────────────────────────────────────
+/// PROVIDER DEL REPO
+/// ─────────────────────────────────────────────────────
 final reportsRepositoryProvider = Provider<ReportsRepository>((ref) {
   return ReportsRepository(FirebaseFirestore.instance);
 });
+// Obtener departamentos
+final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final repo = ref.watch(reportsRepositoryProvider);
+  return repo.fetchDepartments();
+});
 
-/// --------------------------------------------------------------------------
-/// 🔹 Estado general de la pantalla de reportes
-/// --------------------------------------------------------------------------
+// Obtener usuarios
+final usersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final repo = ref.watch(reportsRepositoryProvider);
+  return repo.fetchUsers();
+});
+
+/// ─────────────────────────────────────────────────────
+/// ESTADO DEL REPORTE DETALLADO
+/// ─────────────────────────────────────────────────────
 class ReportsState {
   final bool loading;
-  final ReportKind kind;
   final ReportsFilter filter;
-
-  // 🔹 Datos de los diferentes reportes
-  final List<DailyOccupancyPoint> daily; // Reporte 1
-  final Map<String, int> byDepartment; // Reporte 2
-  final int substituteCount; // Reporte 3
-  final Map<String, int> releasesStats; // Reporte 4
-
+  final List<DetailedReportRecord> detailed;
   final String? error;
 
   const ReportsState({
     required this.loading,
-    required this.kind,
     required this.filter,
-    required this.daily,
-    required this.byDepartment,
-    required this.substituteCount,
-    required this.releasesStats,
+    required this.detailed,
     this.error,
   });
 
   ReportsState copyWith({
     bool? loading,
-    ReportKind? kind,
     ReportsFilter? filter,
-    List<DailyOccupancyPoint>? daily,
-    Map<String, int>? byDepartment,
-    int? substituteCount,
-    Map<String, int>? releasesStats,
+    List<DetailedReportRecord>? detailed,
     String? error,
   }) {
     return ReportsState(
       loading: loading ?? this.loading,
-      kind: kind ?? this.kind,
       filter: filter ?? this.filter,
-      daily: daily ?? this.daily,
-      byDepartment: byDepartment ?? this.byDepartment,
-      substituteCount: substituteCount ?? this.substituteCount,
-      releasesStats: releasesStats ?? this.releasesStats,
+      detailed: detailed ?? this.detailed,
       error: error,
     );
   }
 }
 
-/// --------------------------------------------------------------------------
-/// 🔹 Controlador principal de reportes (Riverpod 3.x)
-/// --------------------------------------------------------------------------
+/// ─────────────────────────────────────────────────────
+/// CONTROLLER PRINCIPAL
+/// ─────────────────────────────────────────────────────
 final reportsControllerProvider =
     NotifierProvider<ReportsController, ReportsState>(ReportsController.new);
 
@@ -74,6 +69,12 @@ class ReportsController extends Notifier<ReportsState> {
   ReportsState build() {
     _repo = ref.read(reportsRepositoryProvider);
 
+    final authState = ref.watch(authControllerProvider);
+    final user = authState.value;
+
+    final adminEstId = user?.establishmentId;
+    print("📌 Establecimiento para reportes: $adminEstId");
+
     final today = DateTime.now();
     final initRange = DateRange(
       start: DateTime(today.year, today.month, today.day)
@@ -81,123 +82,92 @@ class ReportsController extends Notifier<ReportsState> {
       end: DateTime(today.year, today.month, today.day),
     );
 
-    // Estado inicial
     final initialState = ReportsState(
       loading: false,
-      kind: ReportKind.occupancyDaily,
-      filter: ReportsFilter(range: initRange),
-      daily: const [],
-      byDepartment: const {},
-      substituteCount: 0,
-      releasesStats: const {},
+      filter: ReportsFilter(
+        range: initRange,
+        establishmentId: adminEstId,
+        departmentId: null,
+        userId: null,
+      ),
+      detailed: const [],
     );
 
-    // 🔹 Carga inicial automática (primer reporte)
-    Future.microtask(load);
-
+    Future.microtask(loadReport);
     return initialState;
   }
 
-  /// ------------------------------------------------------------------------
-  /// 🔹 Cambiar tipo de reporte (dropdown)
-  /// ------------------------------------------------------------------------
-  void setKind(ReportKind kind) {
-    state = state.copyWith(kind: kind);
-    load();
-  }
-
-  /// ------------------------------------------------------------------------
-  /// 🔹 Cambiar filtro completo (por ejemplo: fecha o establecimiento)
-  /// ------------------------------------------------------------------------
-  void setFilter(ReportsFilter filter) {
-    state = state.copyWith(filter: filter);
-    load();
-  }
-
-  /// ------------------------------------------------------------------------
-  /// 🔹 Cambiar rango de fechas desde el selector del calendario
-  /// ------------------------------------------------------------------------
+  /// ─────────────────────────────────────────────────────
+  /// Cambiar fechas
+  /// ─────────────────────────────────────────────────────
   void setDateRange(DateTimeRange picked) {
-    final newRange = DateRange(
-      start: picked.start,
-      end: picked.end,
+    final updated = state.filter.copyWith(
+      range: DateRange(start: picked.start, end: picked.end),
     );
 
-    // 🧩 Crea un nuevo filtro con el mismo establecimiento y depto, pero rango nuevo
-    final updatedFilter = ReportsFilter(
-      range: newRange,
-      establishmentId: state.filter.establishmentId,
-      departmentId: state.filter.departmentId,
-    );
-
-    state = state.copyWith(filter: updatedFilter);
-    load(); // 🔁 Vuelve a generar el reporte con el nuevo rango
+    state = state.copyWith(filter: updated);
+    loadReport();
   }
 
-  /// ------------------------------------------------------------------------
-  /// 🔹 Cargar los datos del reporte seleccionado
-  /// ------------------------------------------------------------------------
-  Future<void> load() async {
+  /// ─────────────────────────────────────────────────────
+/// Filtros
+/// ─────────────────────────────────────────────────────
+
+void setUserFilter(String? userId) {
+  final f = state.filter;
+
+  final newFilter = ReportsFilter(
+    range: f.range,
+    establishmentId: f.establishmentId,
+    departmentId: f.departmentId,
+    userId: (userId == null || userId.isEmpty) ? null : userId, 
+  );
+
+  state = state.copyWith(filter: newFilter);
+  loadReport();
+}
+
+void setDeptFilter(String? deptId) {
+  final f = state.filter;
+
+  final newFilter = ReportsFilter(
+    range: f.range,
+    establishmentId: f.establishmentId,
+    departmentId: (deptId == null || deptId.isEmpty) ? null : deptId, 
+    userId: f.userId,
+  );
+
+  state = state.copyWith(filter: newFilter);
+  loadReport();
+}
+
+
+  /// ─────────────────────────────────────────────────────
+  /// Carga de datos
+  /// ─────────────────────────────────────────────────────
+  Future<void> loadReport() async {
     state = state.copyWith(loading: true, error: null);
 
     try {
-      switch (state.kind) {
-        // ------------------------------------------------------------------
-        // 📈 Reporte 1 – Ocupación diaria
-        // ------------------------------------------------------------------
-        case ReportKind.occupancyDaily:
-          final data = await _repo.fetchDailyOccupancy(state.filter);
-          state = state.copyWith(
-            loading: false,
-            daily: data,
-            error: null,
-          );
-          break;
+      final f = state.filter;
 
-        // ------------------------------------------------------------------
-        // 🏢 Reporte 2 – Uso por departamento
-        // ------------------------------------------------------------------
-        case ReportKind.byDepartment:
-          final data = await _repo.fetchUsageByDepartment(state.filter);
-          state = state.copyWith(
-            loading: false,
-            byDepartment: data,
-            error: null,
-          );
-          break;
+      final data = await _repo.fetchDetailedDailyReport(
+        start: f.range.start,
+        end: f.range.end,
+        establishmentId: f.establishmentId,
+        departmentId: f.departmentId,
+        userId: f.userId,
+      );
 
-        // ------------------------------------------------------------------
-        // 👥 Reporte 3 – Reservas de suplentes
-        // ------------------------------------------------------------------
-        case ReportKind.substitutes:
-          final count = await _repo.countSubstituteReservations(state.filter);
-          state = state.copyWith(
-            loading: false,
-            substituteCount: count,
-            error: null,
-          );
-          break;
+      print("✅ Reporte cargado: ${data.length} filas");
 
-        // ------------------------------------------------------------------
-        // 🚗 Reporte 4 – Liberaciones de titulares
-        // ------------------------------------------------------------------
-        case ReportKind.titularReleases:
-          final stats = await _repo.fetchReleasesStats(state.filter);
-          state = state.copyWith(
-            loading: false,
-            releasesStats: stats,
-            error: null,
-          );
-          break;
-      }
-
-      print('✅ Reporte cargado correctamente: ${state.kind}');
-    } catch (e, st) {
-      print('❌ Error al cargar reporte ${state.kind}: $e\n$st');
       state = state.copyWith(
         loading: false,
-        error: e.toString(),
+        detailed: data,
       );
+    } catch (e, st) {
+      print("❌ Error reporte: $e\n$st");
+      state = state.copyWith(loading: false, error: e.toString());
     }
   }
 }

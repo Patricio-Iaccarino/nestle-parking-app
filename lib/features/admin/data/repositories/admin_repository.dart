@@ -190,31 +190,45 @@ class AdminRepository {
 
   // --- 🔹 RESERVATIONS (NUEVO) ---
   Future<List<SpotRelease>> getReservations(
-    String establishmentId, {
-    DateTime? date,
-  }) async {
-    try {
-      Query query = _firestore
-          .collection('spotReleases')
-          .where('establishmentId', isEqualTo: establishmentId);
+  String establishmentId, {
+  DateTime? date,
+}) async {
+  try {
+    Query query = _firestore
+        .collection('spotReleases')
+        .where('establishmentId', isEqualTo: establishmentId);
 
-      if (date != null) {
-        final startOfDay = DateTime(date.year, date.month, date.day);
-        final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-        query = query
-            .where('releaseDate', isGreaterThanOrEqualTo: startOfDay)
-            .where('releaseDate', isLessThanOrEqualTo: endOfDay);
-      }
+    if (date != null) {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-      final snapshot = await query.get();
-
-      return snapshot.docs.map((doc) {
-        return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }).toList();
-    } catch (e) {
-      throw Exception('No se pudieron cargar las reservaciones.');
+      query = query
+          .where('releaseDate', isGreaterThanOrEqualTo: startOfDay)
+          .where('releaseDate', isLessThanOrEqualTo: endOfDay);
     }
+
+    final snapshot = await query.get();
+
+    print("✅ Firestore devolvió ${snapshot.docs.length} documentos");
+
+    for (var doc in snapshot.docs) {
+      print("📄 DOC: ${doc.id} => ${doc.data()}");
+    }
+
+    return snapshot.docs.map((doc) {
+      try {
+        return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      } catch (e) {
+        print("❌ ERROR parseando doc ${doc.id}: $e");
+        rethrow;
+      }
+    }).toList();
+  } catch (e) {
+    print("❌ ERROR TOTAL getReservations: $e");
+    throw Exception('No se pudieron cargar las reservaciones.');
   }
+}
+
 
   Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
     String establishmentId,

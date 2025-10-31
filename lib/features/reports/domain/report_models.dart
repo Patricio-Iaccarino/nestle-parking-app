@@ -1,87 +1,133 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// --------------------------------------------------------------------------
-/// 🔹 Tipos de reportes disponibles en la app
-/// --------------------------------------------------------------------------
+/// ------------------------------------------------------------
+/// 🎯 Tipos de reporte (aunque ahora usamos solo uno)
+/// ------------------------------------------------------------
 enum ReportKind {
-  occupancyDaily,     // Ocupación diaria
-  byDepartment,       // Uso por departamento
-  substitutes,        // Reservas de suplentes
-  titularReleases,    // Liberaciones de titulares
+  detailedDaily, // NUEVO (tabla completa)
+  occupancyDaily,
+  byDepartment,
+  substitutes,
+  titularReleases,
 }
 
-/// --------------------------------------------------------------------------
-/// 🔹 Representa un rango de fechas (desde - hasta)
-/// --------------------------------------------------------------------------
-class DateRange {
-  final DateTime start; // inclusive
-  final DateTime end;   // inclusive
-
-  const DateRange({
-    required this.start,
-    required this.end,
-  });
-
-  @override
-  String toString() => 'DateRange($start → $end)';
-}
-
-/// --------------------------------------------------------------------------
-/// 🔹 Punto de datos diario (para el gráfico o listado de ocupación)
-/// --------------------------------------------------------------------------
-class DailyOccupancyPoint {
-  final DateTime day;                // yyyy-mm-dd (a las 00:00)
-  final int occupied;                // cocheras ocupadas ese día
-  final int availableForSubstitutes; // cocheras disponibles para suplentes
-  final int reservedBySubstitutes;   // reservas confirmadas por suplentes
-
-  const DailyOccupancyPoint({
-    required this.day,
-    required this.occupied,
-    required this.availableForSubstitutes,
-    required this.reservedBySubstitutes,
-  });
-
-  @override
-  String toString() =>
-      'DailyOccupancyPoint(day: $day, occupied: $occupied, available: $availableForSubstitutes, reserved: $reservedBySubstitutes)';
-}
-
-/// --------------------------------------------------------------------------
-/// 🔹 Filtros comunes aplicables a todos los reportes
-/// --------------------------------------------------------------------------
+/// ------------------------------------------------------------
+/// 🎯 Filtro del reporte
+/// ------------------------------------------------------------
 class ReportsFilter {
+  final DateRange range;
   final String? establishmentId;
   final String? departmentId;
-  final DateRange range;
+  final String? userId;
 
-  const ReportsFilter({
+  ReportsFilter({
     required this.range,
     this.establishmentId,
     this.departmentId,
+    this.userId,
   });
 
-  /// Permite crear una copia modificando solo algunos valores
   ReportsFilter copyWith({
     DateRange? range,
     String? establishmentId,
     String? departmentId,
+    String? userId,
   }) {
     return ReportsFilter(
       range: range ?? this.range,
       establishmentId: establishmentId ?? this.establishmentId,
       departmentId: departmentId ?? this.departmentId,
+      userId: userId ?? this.userId,
+    );
+  }
+}
+
+/// ------------------------------------------------------------
+/// 📅 Rango de fechas simple
+/// ------------------------------------------------------------
+class DateRange {
+  final DateTime start;
+  final DateTime end;
+
+  DateRange({required this.start, required this.end});
+}
+
+/// ------------------------------------------------------------
+/// 📊 MODELO ANTIGUO (lo mantenemos por si lo querés usar)
+/// ------------------------------------------------------------
+class DailyOccupancyPoint {
+  final DateTime day;
+  final int occupied;
+  final int availableForSubstitutes;
+  final int reservedBySubstitutes;
+
+  DailyOccupancyPoint({
+    required this.day,
+    required this.occupied,
+    required this.availableForSubstitutes,
+    required this.reservedBySubstitutes,
+  });
+}
+
+/// ------------------------------------------------------------
+/// ✅ NUEVO MODELO PARA TABLA DETALLADA
+/// ------------------------------------------------------------
+/// Cada fila representa una reserva o liberación de cochera
+/// ------------------------------------------------------------
+
+class DetailedReportRecord {
+  final DateTime releaseDate;
+  final String status; // AVAILABLE | BOOKED | CANCELLED?
+  final String? userId;
+  final String? userName;
+  final String? departmentId;
+  final String? departmentName;
+  final String? spotId;
+  final String? spotName;
+
+  DetailedReportRecord({
+    required this.releaseDate,
+    required this.status,
+    this.userId,
+    this.userName,
+    this.departmentId,
+    this.departmentName,
+    this.spotId,
+    this.spotName,
+  });
+
+  /// 🏗️ Factory para construir desde Firestore
+  factory DetailedReportRecord.fromFirestore(
+    String id,
+    Map<String, dynamic> data,
+  ) {
+    final ts = data['releaseDate'];
+    return DetailedReportRecord(
+      releaseDate: ts is Timestamp ? ts.toDate() : DateTime.now(),
+      status: (data['status'] ?? '').toString(),
+      userId: data['bookedByUserId']?.toString(),
+      userName: data['userName']?.toString(), // por si ya lo guardás
+      departmentId: data['departmentId']?.toString(),
+      departmentName: data['departmentName']?.toString(),
+      spotId: data['spotId']?.toString(),
+      spotName: data['spotName']?.toString(),
     );
   }
 
-  @override
-  String toString() =>
-      'ReportsFilter(establishmentId: $establishmentId, departmentId: $departmentId, range: $range)';
+  /// Conversión a Map para export o debug
+  Map<String, dynamic> toMap() => {
+        'releaseDate': releaseDate,
+        'status': status,
+        'userId': userId,
+        'userName': userName,
+        'departmentId': departmentId,
+        'departmentName': departmentName,
+        'spotId': spotId,
+        'spotName': spotName,
+      };
 }
 
-/// --------------------------------------------------------------------------
-/// 🔹 Helpers de fecha (para normalización y conversión Firestore)
-/// --------------------------------------------------------------------------
-DateTime dayFloor(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
-
-Timestamp tsFromDay(DateTime day) => Timestamp.fromDate(day);
+/// ------------------------------------------------------------
+/// 🔧 Utilidad: normalizar fecha a inicio del día
+/// ------------------------------------------------------------
+DateTime dayFloor(DateTime d) => DateTime(d.year, d.month, d.day);

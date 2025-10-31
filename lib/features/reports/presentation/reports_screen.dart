@@ -1,345 +1,363 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../application/reports_controller.dart' as controller; 
-import '../domain/report_models.dart';
-import '../../../core/services/export_service.dart'; 
 import 'package:intl/intl.dart';
 
-/// --------------------------------------------------------------------------
-/// 🔹 Pantalla principal de Reportes
-/// --------------------------------------------------------------------------
-class ReportsScreen extends ConsumerWidget {
+import '../application/reports_controller.dart';
+import '../domain/report_models.dart';
+import '../../../core/services/export_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../features/auth/presentation/auth_controller.dart';
+
+// 🔹 Provider para departamentos filtrados por establecimiento
+final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final auth = ref.watch(authControllerProvider).value;
+  final estId = auth?.establishmentId;
+
+  if (estId == null) return [];
+
+  final snap = await FirebaseFirestore.instance
+      .collection("departments")
+      .where("establishmentId", isEqualTo: estId)
+      .get();
+
+  return snap.docs
+      .map((d) => {
+            "id": d.id,
+            "name": d["name"] ?? "",
+          })
+      .toList();
+});
+
+// 🔹 Provider para usuarios filtrados por establecimiento
+final usersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final auth = ref.watch(authControllerProvider).value;
+  final estId = auth?.establishmentId;
+
+  if (estId == null) return [];
+
+  final snap = await FirebaseFirestore.instance
+      .collection("users")
+      .where("establishmentId", isEqualTo: estId)
+      .get();
+
+  return snap.docs
+      .map((u) => {
+            "id": u.id,
+            "name": u["displayName"] ?? "",
+          })
+      .toList();
+});
+
+
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(controller.reportsControllerProvider);
-    final reportsController =
-        ref.read(controller.reportsControllerProvider.notifier);
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
+}
 
-    final dateFormat = DateFormat('dd/MM/yyyy');
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  String _searchText = "";
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(reportsControllerProvider);
+    final controller = ref.read(reportsControllerProvider.notifier);
+
+    final filtered = state.detailed.where((e) {
+  final s = _searchText.toLowerCase();
+  if (s.isEmpty) return true;
+
+  return (e.userName ?? "").toLowerCase().contains(s) ||
+         (e.departmentName ?? "").toLowerCase().contains(s) ||
+         (e.spotName ?? "").toLowerCase().contains(s);
+}).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reportes'),
+        title: const Text("Reporte de Ocupación de Cocheras"),
         backgroundColor: Colors.red.shade700,
         actions: [
-          // 🔹 Botón Exportar
-          PopupMenuButton<String>(
-            tooltip: 'Exportar',
-            icon: const Icon(Icons.download),
-            onSelected: (value) async {
-              await ExportService.export(
-                format: value,
-                kind: state.kind,
-                daily: state.daily,
-                byDepartment: state.byDepartment,
-                substituteCount: state.substituteCount,
-                releasesStats: state.releasesStats,
-              );
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'csv',
-                child: Text('Exportar como CSV'),
-              ),
-              PopupMenuItem(
-                value: 'pdf',
-                child: Text('Exportar como PDF'),
-              ),
-              PopupMenuItem(
-                value: 'excel',
-                child: Text('Exportar como Excel (.xlsx)'), 
-              ),
-            ],
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: "Actualizar",
+            onPressed: controller.loadReport,
           ),
 
-          // 🔹 Botón Actualizar
-          IconButton(
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => reportsController.load(),
+          PopupMenuButton<String>(
+            tooltip: "Exportar",
+            icon: const Icon(Icons.download),
+            onSelected: (f) => ExportService.exportDetailed(f, filtered),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: "excel", child: Text("Exportar Excel")),
+              PopupMenuItem(value: "csv", child: Text("Exportar CSV")),
+              PopupMenuItem(value: "pdf", child: Text("Exportar PDF")),
+            ],
           ),
         ],
       ),
 
-      // 🔹 Contenido del body
       body: Column(
         children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
-          // 🔹 Selector de tipo de reporte
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButton<ReportKind>(
-              value: state.kind,
-              isExpanded: true,
-              onChanged: (kind) {
-                if (kind != null) reportsController.setKind(kind);
-              },
-              items: const [
-                DropdownMenuItem(
-                  value: ReportKind.occupancyDaily,
-                  child: Text('Ocupación diaria'),
-                ),
-                DropdownMenuItem(
-                  value: ReportKind.byDepartment,
-                  child: Text('Uso por departamento'),
-                ),
-                DropdownMenuItem(
-                  value: ReportKind.substitutes,
-                  child: Text('Reservas de suplentes'),
-                ),
-                DropdownMenuItem(
-                  value: ReportKind.titularReleases,
-                  child: Text('Liberaciones de titulares'),
-                ),
-              ],
-            ),
+          _DateRangePicker(state: state, controller: controller),
+
+          _FiltersRow(
+            onSearch: (t) => setState(() => _searchText = t),
+            onDeptSelected: controller.setDeptFilter,
+            onUserSelected: controller.setUserFilter,
           ),
 
-          // 🔹 Selector de rango de fechas (interactivo)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                InkWell(
-                  onTap: () async {
-                    final pickedRange = await showDateRangePicker(
-                      context: context,
-                      firstDate: DateTime(2024, 1, 1),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                      initialDateRange: DateTimeRange(
-                        start: state.filter.range.start,
-                        end: state.filter.range.end,
-                      ),
-                      locale: const Locale('es', 'ES'),
-                      builder: (context, child) {
-                        // 🔹 Personalización visual (opcional)
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: ColorScheme.light(
-                              primary: Colors.red.shade700,
-                              onPrimary: Colors.white,
-                              onSurface: Colors.black,
-                            ),
-                          ),
-                          child: child!,
-                        );
-                      },
-                    );
+          _TotalsRow(records: filtered),
 
-                    if (pickedRange != null) {
-                      reportsController.setDateRange(pickedRange);
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.date_range, color: Colors.red),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Desde: ${dateFormat.format(state.filter.range.start)}  '
-                          'Hasta: ${dateFormat.format(state.filter.range.end)}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.edit_calendar,
-                            size: 18, color: Colors.red),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const Divider(height: 1),
 
-          const Divider(),
-
-          // 🔹 Contenido dinámico
           Expanded(
             child: state.loading
                 ? const Center(child: CircularProgressIndicator())
-                : _ReportContent(state: state),
-          ),
+                : state.error != null
+                    ? Center(
+                        child: Text("⚠️ ${state.error}",
+                            style: TextStyle(color: Colors.red.shade800)))
+                    : _RecordsTable(records: filtered),
+          )
         ],
       ),
     );
   }
 }
 
-/// --------------------------------------------------------------------------
-/// 🔹 Contenido dinámico del reporte según el tipo
-/// --------------------------------------------------------------------------
-class _ReportContent extends StatelessWidget {
-  final controller.ReportsState state; 
-  const _ReportContent({required this.state});
+class _DateRangePicker extends StatelessWidget {
+  final ReportsState state;
+  final ReportsController controller;
+
+  const _DateRangePicker({required this.state, required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    if (state.error != null) {
-      return Center(
-        child: Text(
-          '⚠️ Error: ${state.error}',
-          style: const TextStyle(color: Colors.red),
-        ),
-      );
-    }
+    final df = DateFormat('dd/MM/yyyy');
 
-    switch (state.kind) {
-      case ReportKind.occupancyDaily:
-        return _buildDailyOccupancy();
-      case ReportKind.byDepartment:
-        return _buildDepartmentUsage();
-      case ReportKind.substitutes:
-        return _buildSubstituteCount();
-      case ReportKind.titularReleases:
-        return _buildReleasesStats();
-    }
-  }
-
-  // 📊 Reporte 1 – Ocupación diaria
-  Widget _buildDailyOccupancy() {
-    if (state.daily.isEmpty) {
-      return const Center(child: Text('No hay datos disponibles.'));
-    }
-
-    return ListView.builder(
-      itemCount: state.daily.length,
-      itemBuilder: (context, index) {
-        final p = state.daily[index];
-        final formattedDate = DateFormat('dd/MM').format(p.day);
-        return ListTile(
-          leading: const Icon(Icons.calendar_today, color: Colors.red),
-          title: Text('Día $formattedDate'),
-          subtitle: Text(
-            'Ocupadas: ${p.occupied} | Canceladas: ${p.availableForSubstitutes} | Total: ${p.reservedBySubstitutes}',
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: InkWell(
+        onTap: () async {
+          final picked = await showDateRangePicker(
+            context: context,
+            firstDate: DateTime(2024, 1, 1),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            initialDateRange: DateTimeRange(
+              start: state.filter.range.start,
+              end: state.filter.range.end,
+            ),
+            locale: const Locale('es', 'ES'),
+          );
+          if (picked != null) controller.setDateRange(picked);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade400),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey.shade100,
           ),
-        );
-      },
-    );
-  }
-
-  // 🏢 Reporte 2 – Uso por departamento
-  Widget _buildDepartmentUsage() {
-    if (state.byDepartment.isEmpty) {
-      return const Center(child: Text('No hay registros por departamento.'));
-    }
-
-    final entries = state.byDepartment.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return ListView.separated(
-      itemCount: entries.length,
-      separatorBuilder: (_, __) => const Divider(height: 0),
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        return ListTile(
-          leading: const Icon(Icons.apartment, color: Colors.blueGrey),
-          title: Text(entry.key),
-          trailing: Text('${entry.value} reservas'),
-        );
-      },
-    );
-  }
-
-  // 👥 Reporte 3 – Reservas de suplentes
-  Widget _buildSubstituteCount() {
-    return Center(
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(24),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.person_outline, size: 48, color: Colors.teal),
-              const SizedBox(height: 12),
-              const Text(
-                'Reservas realizadas por suplentes',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
+              const Icon(Icons.date_range, color: Colors.red),
+              const SizedBox(width: 8),
               Text(
-                '${state.substituteCount}',
-                style: const TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal,
+                "Desde: ${df.format(state.filter.range.start)} "
+                "→ Hasta: ${df.format(state.filter.range.end)}",
+                style: const TextStyle(fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FiltersRow extends ConsumerStatefulWidget {
+  final Function(String) onSearch;
+  final Function(String?) onDeptSelected;
+  final Function(String?) onUserSelected;
+
+  const _FiltersRow({
+    required this.onSearch,
+    required this.onDeptSelected,
+    required this.onUserSelected,
+  });
+
+  @override
+  ConsumerState<_FiltersRow> createState() => _FiltersRowState();
+}
+
+class _FiltersRowState extends ConsumerState<_FiltersRow> {
+  String? selectedDept;
+  String? selectedUser;
+
+  @override
+  Widget build(BuildContext context) {
+    final departmentsAsync = ref.watch(departmentsProvider);
+    final usersAsync = ref.watch(usersProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              onChanged: widget.onSearch,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: "Buscar usuario / depto / cochera",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 🚗 Reporte 4 – Liberaciones de titulares
-  Widget _buildReleasesStats() {
-    if (state.releasesStats.isEmpty) {
-      return const Center(child: Text('No hay liberaciones registradas.'));
-    }
-
-    final available = state.releasesStats['available'] ?? 0;
-    final booked = state.releasesStats['booked'] ?? 0;
-    final total = state.releasesStats['total'] ?? 0;
-
-    return Center(
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(24),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.local_parking, size: 48, color: Colors.orange),
-              const SizedBox(height: 12),
-              const Text(
-                'Liberaciones de titulares',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              _statRow('Disponibles', available, Colors.green),
-              _statRow('Reservadas', booked, Colors.blue),
-              _statRow('Total', total, Colors.black87),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statRow(String label, int value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          Text(
-            value.toString(),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
             ),
           ),
+
+          const SizedBox(width: 12),
+
+          // 🏢 Departamentos
+          departmentsAsync.when(
+            data: (list) {
+              return DropdownButton<String?>(
+                value: selectedDept,
+                hint: const Text("Departamentos"),
+                onChanged: (value) {
+                  setState(() => selectedDept = value == "ALL" ? null : value);
+                  widget.onDeptSelected(selectedDept);
+                },
+                items: [
+                  const DropdownMenuItem(
+                    value: "ALL",
+                    child: Text("Todos"),
+                  ),
+                  ...list.map((d) => DropdownMenuItem(
+                        value: d["id"],
+                        child: Text(d["name"]),
+                      )),
+                ],
+              );
+            },
+            loading: () => const SizedBox(
+              width: 22, height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            error: (_, __) => const Text("Error deps"),
+          ),
+
+          const SizedBox(width: 12),
+
+          // 👤 Usuarios
+          usersAsync.when(
+  data: (list) {
+    return DropdownButton<String?>(
+      value: selectedUser,
+      hint: const Text("Usuarios"),
+      onChanged: (value) {
+        setState(() => selectedUser = value);
+        widget.onUserSelected(selectedUser);
+      },
+      items: [
+        const DropdownMenuItem(
+          value: null,
+          child: Text("Todos"),
+        ),
+        ...list.map((u) => DropdownMenuItem(
+              value: u["id"],
+              child: Text(u["name"]),
+            )),
+      ],
+    );
+  },
+  loading: () => const SizedBox(
+    width: 22, height: 22,
+    child: CircularProgressIndicator(strokeWidth: 2),
+  ),
+  error: (_, __) => const Text("Error users"),
+),
         ],
+      ),
+    );
+  }
+}
+
+
+
+
+class _TotalsRow extends StatelessWidget {
+  final List<DetailedReportRecord> records;
+  const _TotalsRow({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = records.length;
+    final booked = records.where((e) => e.status == "BOOKED").length;
+    final available = records.where((e) => e.status == "AVAILABLE").length;
+
+    return Container(
+      color: Colors.grey.shade200,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _stat("Total", total, Colors.black),
+          _stat("Reservadas", booked, Colors.green),
+          _stat("Libres", available, Colors.blue),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String label, int value, Color color) {
+    return Row(
+      children: [
+        Text("$label: ", style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text("$value",
+            style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+}
+
+class _RecordsTable extends StatelessWidget {
+  final List<DetailedReportRecord> records;
+  const _RecordsTable({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('dd/MM/yyyy HH:mm');
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all(Colors.red.shade50),
+        columns: const [
+          DataColumn(label: Text("Fecha")),
+          DataColumn(label: Text("Estado")),
+          DataColumn(label: Text("Usuario")),
+          DataColumn(label: Text("Depto")),
+          DataColumn(label: Text("Cochera")),
+        ],
+        rows: records.map((r) {
+          return DataRow(cells: [
+            DataCell(Text(df.format(r.releaseDate))),
+            DataCell(Text(
+              r.status,
+              style: TextStyle(
+                color: r.status == "BOOKED" ? Colors.green : Colors.blue,
+              ),
+            )),
+            DataCell(Text(r.userName ?? "-")),
+            DataCell(Text(r.departmentName ?? "-")),
+            DataCell(Text(r.spotName ?? "-")),
+          ]);
+        }).toList(),
       ),
     );
   }

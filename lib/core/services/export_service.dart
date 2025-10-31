@@ -1,371 +1,136 @@
+// /core/services/export_service.dart
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:intl/intl.dart';
 import 'dart:html' as html;
-import 'package:excel/excel.dart'; 
-import '../../features/reports/domain/report_models.dart';
+
+import 'package:intl/intl.dart';
+import 'package:excel/excel.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 
+import '../../features/reports/domain/report_models.dart';
+
 class ExportService {
-  static String _formatDay(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+  static final _df = DateFormat('yyyy-MM-dd HH:mm');
 
   /// ------------------------------------------------------------------------
-  /// 🔹 Exportador unificado según tipo de reporte y formato (CSV, PDF, XLSX)
+  /// Punto único de exportación para el **reporte detallado**
+  /// format: 'excel' | 'csv' | 'pdf'
   /// ------------------------------------------------------------------------
-  static Future<void> export({
-    required String format, // 'csv' | 'pdf' | 'excel'
-    required ReportKind kind,
-    required List<DailyOccupancyPoint> daily,
-    required Map<String, int> byDepartment,
-    required int substituteCount,
-    required Map<String, int> releasesStats,
-  }) async {
-    switch (kind) {
-      // ----------------------------------------------------------------------
-      // 📊 Ocupación diaria
-      // ----------------------------------------------------------------------
-      case ReportKind.occupancyDaily:
-        if (format == 'csv') {
-          await exportDailyToCsv(daily);
-        } else if (format == 'pdf') {
-          await exportDailyToPdf(daily);
-        } else if (format == 'excel') {
-          await exportDailyToExcel(daily);
-        }
+  static Future<void> exportDetailed(
+    String format,
+    List<DetailedReportRecord> data,
+  ) async {
+    switch (format) {
+      case 'excel':
+        await _exportDetailedToExcel(data);
         break;
-
-      // ----------------------------------------------------------------------
-      // 🏢 Uso por departamento
-      // ----------------------------------------------------------------------
-      case ReportKind.byDepartment:
-        if (format == 'csv') {
-          await exportByDepartmentToCsv(byDepartment);
-        } else if (format == 'pdf') {
-          await exportByDepartmentToPdf(byDepartment);
-        } else if (format == 'excel') {
-          await exportByDepartmentToExcel(byDepartment);
-        }
+      case 'csv':
+        await _exportDetailedToCsv(data);
         break;
-
-      // ----------------------------------------------------------------------
-      // 👥 Reservas de suplentes
-      // ----------------------------------------------------------------------
-      case ReportKind.substitutes:
-        if (format == 'csv') {
-          await exportSubstitutesToCsv(substituteCount);
-        } else if (format == 'pdf') {
-          await exportSubstitutesToPdf(substituteCount);
-        } else if (format == 'excel') {
-          await exportSubstitutesToExcel(substituteCount);
-        }
+      case 'pdf':
+        await _exportDetailedToPdf(data);
         break;
-
-      // ----------------------------------------------------------------------
-      // 🚗 Liberaciones de titulares
-      // ----------------------------------------------------------------------
-      case ReportKind.titularReleases:
-        if (format == 'csv') {
-          await exportReleasesToCsv(releasesStats);
-        } else if (format == 'pdf') {
-          await exportReleasesToPdf(releasesStats);
-        } else if (format == 'excel') {
-          await exportReleasesToExcel(releasesStats);
-        }
+      default:
+        // opcionalmente, podrías lanzar una excepción o ignorar
         break;
     }
   }
 
   // ------------------------------------------------------------------------
-  // 📊 Ocupación diaria
+  // CSV
   // ------------------------------------------------------------------------
-  static Future<void> exportDailyToCsv(List<DailyOccupancyPoint> data) async {
+  static Future<void> _exportDetailedToCsv(List<DetailedReportRecord> data) async {
     final rows = <List<String>>[
-      ['Día', 'Ocupadas', 'Reservadas (Supl.)', 'Disponibles (Supl.)'],
-      ...data.map((e) => [
-            _formatDay(e.day),
-            e.occupied.toString(),
-            e.reservedBySubstitutes.toString(),
-            e.availableForSubstitutes.toString(),
+      ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera'],
+      ...data.map((r) => [
+            _df.format(r.releaseDate),
+            r.status,
+            r.userName ?? '-',
+            r.departmentName ?? '-',
+            r.spotName ?? '-',
           ]),
     ];
 
     final csv = const ListToCsvConverter().convert(rows);
-    _downloadUtf8(csv, filename: 'ocupacion_diaria.csv', mime: 'text/csv');
+    _downloadUtf8(csv, filename: 'reporte_detallado.csv', mime: 'text/csv');
   }
 
-  static Future<void> exportDailyToPdf(List<DailyOccupancyPoint> data) async {
+  // ------------------------------------------------------------------------
+  // PDF
+  // ------------------------------------------------------------------------
+  static Future<void> _exportDetailedToPdf(List<DetailedReportRecord> data) async {
     final pdf = pw.Document();
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        build: (_) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'Reporte: Ocupación diaria',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 12),
-            pw.Table.fromTextArray(
-              headers: [
-                'Día',
-                'Ocupadas',
-                'Reservadas (Supl.)',
-                'Disponibles (Supl.)'
-              ],
-              data: data
-                  .map((e) => [
-                        _formatDay(e.day),
-                        e.occupied,
-                        e.reservedBySubstitutes,
-                        e.availableForSubstitutes,
-                      ])
-                  .toList(),
-            ),
-          ],
-        ),
+        build: (_) => [
+          pw.Text(
+            'Reporte detallado de ocupación',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Table.fromTextArray(
+            headers: const ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera'],
+            data: data
+                .map((r) => [
+                      _df.format(r.releaseDate),
+                      r.status,
+                      r.userName ?? '-',
+                      r.departmentName ?? '-',
+                      r.spotName ?? '-',
+                    ])
+                .toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            cellAlignment: pw.Alignment.centerLeft,
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+          ),
+        ],
       ),
     );
 
     final bytes = await pdf.save();
     _downloadBytes(bytes,
-        filename: 'ocupacion_diaria.pdf', mime: 'application/pdf');
+        filename: 'reporte_detallado.pdf', mime: 'application/pdf');
   }
 
-  static Future<void> exportDailyToExcel(List<DailyOccupancyPoint> data) async {
+  // ------------------------------------------------------------------------
+  // Excel (sin estilos especiales para máxima compatibilidad)
+  // ------------------------------------------------------------------------
+  static Future<void> _exportDetailedToExcel(List<DetailedReportRecord> data) async {
     final excel = Excel.createExcel();
-    final sheet = excel['Ocupación diaria'];
+    final sheet = excel['Reporte detallado'];
+
+    // Encabezados
     sheet.appendRow([
-      TextCellValue('Día'),
-      TextCellValue('Ocupadas'),
-      TextCellValue('Reservadas (Supl.)'),
-      TextCellValue('Disponibles (Supl.)'),
+       TextCellValue('Fecha'),
+       TextCellValue('Estado'),
+       TextCellValue('Usuario'),
+       TextCellValue('Departamento'),
+       TextCellValue('Cochera'),
     ]);
 
-    for (final e in data) {
+    // Filas
+    for (final r in data) {
       sheet.appendRow([
-        TextCellValue(_formatDay(e.day)),
-        TextCellValue(e.occupied.toString()),
-        TextCellValue(e.reservedBySubstitutes.toString()),
-        TextCellValue(e.availableForSubstitutes.toString()),
+        TextCellValue(_df.format(r.releaseDate)),
+        TextCellValue(r.status),
+        TextCellValue(r.userName ?? '-'),
+        TextCellValue(r.departmentName ?? '-'),
+        TextCellValue(r.spotName ?? '-'),
       ]);
     }
 
     final bytes = Uint8List.fromList(excel.encode()!);
     _downloadBytes(
       bytes,
-      filename: 'ocupacion_diaria.xlsx',
-      mime:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: 'reporte_detallado.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
   }
 
   // ------------------------------------------------------------------------
-  // 🏢 Uso por departamento
-  // ------------------------------------------------------------------------
-  static Future<void> exportByDepartmentToCsv(
-      Map<String, int> byDepartment) async {
-    final rows = <List<String>>[
-      ['Departamento', 'Reservas'],
-      ...byDepartment.entries.map((e) => [e.key, e.value.toString()]),
-    ];
-
-    final csv = const ListToCsvConverter().convert(rows);
-    _downloadUtf8(csv,
-        filename: 'uso_por_departamento.csv', mime: 'text/csv');
-  }
-
-  static Future<void> exportByDepartmentToPdf(
-      Map<String, int> byDepartment) async {
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (_) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'Reporte: Uso por departamento',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 12),
-            pw.Table.fromTextArray(
-              headers: ['Departamento', 'Reservas'],
-              data: byDepartment.entries.map((e) => [e.key, e.value]).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    final bytes = await pdf.save();
-    _downloadBytes(bytes,
-        filename: 'uso_por_departamento.pdf', mime: 'application/pdf');
-  }
-
-  static Future<void> exportByDepartmentToExcel(
-      Map<String, int> byDepartment) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Uso por departamento'];
-    sheet.appendRow([
-      TextCellValue('Departamento'),
-      TextCellValue('Reservas'),
-    ]);
-
-    for (final e in byDepartment.entries) {
-      sheet.appendRow([
-        TextCellValue(e.key),
-        TextCellValue(e.value.toString()),
-      ]);
-    }
-
-    final bytes = Uint8List.fromList(excel.encode()!);
-    _downloadBytes(
-      bytes,
-      filename: 'uso_por_departamento.xlsx',
-      mime:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-  }
-
-  // ------------------------------------------------------------------------
-  // 👥 Reservas de suplentes
-  // ------------------------------------------------------------------------
-  static Future<void> exportSubstitutesToCsv(int count) async {
-    final csv = 'Tipo,Total\nReservas de suplentes,$count';
-    _downloadUtf8(csv,
-        filename: 'reservas_suplentes.csv', mime: 'text/csv');
-  }
-
-  static Future<void> exportSubstitutesToPdf(int count) async {
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a5,
-        build: (_) => pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-              pw.Text(
-                'Reporte: Reservas de suplentes',
-                style:
-                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.SizedBox(height: 20),
-              pw.Text('Total: $count reservas',
-                  style: const pw.TextStyle(fontSize: 16)),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    final bytes = await pdf.save();
-    _downloadBytes(bytes,
-        filename: 'reservas_suplentes.pdf', mime: 'application/pdf');
-  }
-
-  static Future<void> exportSubstitutesToExcel(int count) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Reservas de suplentes'];
-    sheet.appendRow([
-      TextCellValue('Tipo'),
-      TextCellValue('Total'),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Reservas de suplentes'),
-      TextCellValue(count.toString()),
-    ]);
-
-    final bytes = Uint8List.fromList(excel.encode()!);
-    _downloadBytes(
-      bytes,
-      filename: 'reservas_suplentes.xlsx',
-      mime:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-  }
-
-  // ------------------------------------------------------------------------
-  // 🚗 Liberaciones de titulares
-  // ------------------------------------------------------------------------
-  static Future<void> exportReleasesToCsv(Map<String, int> stats) async {
-    final csv = const ListToCsvConverter().convert([
-      ['Tipo', 'Cantidad'],
-      ['Disponibles', '${stats['available'] ?? 0}'],
-      ['Reservadas', '${stats['booked'] ?? 0}'],
-      ['Total', '${stats['total'] ?? 0}'],
-    ]);
-    _downloadUtf8(csv,
-        filename: 'liberaciones_titulares.csv', mime: 'text/csv');
-  }
-
-  static Future<void> exportReleasesToPdf(Map<String, int> stats) async {
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a5,
-        build: (_) => pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-              pw.Text(
-                'Reporte: Liberaciones de titulares',
-                style:
-                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.SizedBox(height: 16),
-              pw.Table.fromTextArray(
-                headers: ['Tipo', 'Cantidad'],
-                data: [
-                  ['Disponibles', stats['available'] ?? 0],
-                  ['Reservadas', stats['booked'] ?? 0],
-                  ['Total', stats['total'] ?? 0],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    final bytes = await pdf.save();
-    _downloadBytes(bytes,
-        filename: 'liberaciones_titulares.pdf', mime: 'application/pdf');
-  }
-
-  static Future<void> exportReleasesToExcel(Map<String, int> stats) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Liberaciones de titulares'];
-    sheet.appendRow([
-      TextCellValue('Tipo'),
-      TextCellValue('Cantidad'),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Disponibles'),
-      TextCellValue((stats['available'] ?? 0).toString()),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Reservadas'),
-      TextCellValue((stats['booked'] ?? 0).toString()),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Total'),
-      TextCellValue((stats['total'] ?? 0).toString()),
-    ]);
-
-    final bytes = Uint8List.fromList(excel.encode()!);
-    _downloadBytes(
-      bytes,
-      filename: 'liberaciones_titulares.xlsx',
-      mime:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-  }
-
-  // ------------------------------------------------------------------------
-  // 💾 Métodos de descarga
+  // Descargas
   // ------------------------------------------------------------------------
   static void _downloadUtf8(String content,
       {required String filename, required String mime}) {
@@ -384,9 +149,7 @@ class ExportService {
   }
 }
 
-/// --------------------------------------------------------------------------
-/// CSV converter minimalista (sin dependencias externas)
-/// --------------------------------------------------------------------------
+/// Conversor CSV minimalista
 class ListToCsvConverter {
   const ListToCsvConverter();
 

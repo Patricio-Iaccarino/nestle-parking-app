@@ -13,6 +13,7 @@ import '../../../features/auth/presentation/auth_controller.dart';
 final reportsRepositoryProvider = Provider<ReportsRepository>((ref) {
   return ReportsRepository(FirebaseFirestore.instance);
 });
+
 // Obtener departamentos
 final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final repo = ref.watch(reportsRepositoryProvider);
@@ -26,7 +27,7 @@ final usersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
 });
 
 /// ─────────────────────────────────────────────────────
-/// ESTADO DEL REPORTE DETALLADO
+/// ESTADO DEL REPORTE DETALLADO + KPIs
 /// ─────────────────────────────────────────────────────
 class ReportsState {
   final bool loading;
@@ -34,11 +35,19 @@ class ReportsState {
   final List<DetailedReportRecord> detailed;
   final String? error;
 
+  // ✅ NUEVOS CAMPOS (KPIs)
+  final int totalSpots;
+  final int totalLiberated;
+  final int totalBooked;
+
   const ReportsState({
     required this.loading,
     required this.filter,
     required this.detailed,
     this.error,
+    this.totalSpots = 0,
+    this.totalLiberated = 0,
+    this.totalBooked = 0,
   });
 
   ReportsState copyWith({
@@ -46,12 +55,18 @@ class ReportsState {
     ReportsFilter? filter,
     List<DetailedReportRecord>? detailed,
     String? error,
+    int? totalSpots,
+    int? totalLiberated,
+    int? totalBooked,
   }) {
     return ReportsState(
       loading: loading ?? this.loading,
       filter: filter ?? this.filter,
       detailed: detailed ?? this.detailed,
       error: error,
+      totalSpots: totalSpots ?? this.totalSpots,
+      totalLiberated: totalLiberated ?? this.totalLiberated,
+      totalBooked: totalBooked ?? this.totalBooked,
     );
   }
 }
@@ -97,9 +112,7 @@ class ReportsController extends Notifier<ReportsState> {
     return initialState;
   }
 
-  /// ─────────────────────────────────────────────────────
   /// Cambiar fechas
-  /// ─────────────────────────────────────────────────────
   void setDateRange(DateTimeRange picked) {
     final updated = state.filter.copyWith(
       range: DateRange(start: picked.start, end: picked.end),
@@ -109,41 +122,37 @@ class ReportsController extends Notifier<ReportsState> {
     loadReport();
   }
 
-  /// ─────────────────────────────────────────────────────
-/// Filtros
-/// ─────────────────────────────────────────────────────
+  /// Filtros
+  void setUserFilter(String? userId) {
+    final f = state.filter;
 
-void setUserFilter(String? userId) {
-  final f = state.filter;
+    final newFilter = ReportsFilter(
+      range: f.range,
+      establishmentId: f.establishmentId,
+      departmentId: f.departmentId,
+      userId: (userId == null || userId.isEmpty) ? null : userId,
+    );
 
-  final newFilter = ReportsFilter(
-    range: f.range,
-    establishmentId: f.establishmentId,
-    departmentId: f.departmentId,
-    userId: (userId == null || userId.isEmpty) ? null : userId, 
-  );
+    state = state.copyWith(filter: newFilter);
+    loadReport();
+  }
 
-  state = state.copyWith(filter: newFilter);
-  loadReport();
-}
+  void setDeptFilter(String? deptId) {
+    final f = state.filter;
 
-void setDeptFilter(String? deptId) {
-  final f = state.filter;
+    final newFilter = ReportsFilter(
+      range: f.range,
+      establishmentId: f.establishmentId,
+      departmentId: (deptId == null || deptId.isEmpty) ? null : deptId,
+      userId: f.userId,
+    );
 
-  final newFilter = ReportsFilter(
-    range: f.range,
-    establishmentId: f.establishmentId,
-    departmentId: (deptId == null || deptId.isEmpty) ? null : deptId, 
-    userId: f.userId,
-  );
-
-  state = state.copyWith(filter: newFilter);
-  loadReport();
-}
-
+    state = state.copyWith(filter: newFilter);
+    loadReport();
+  }
 
   /// ─────────────────────────────────────────────────────
-  /// Carga de datos
+  /// Carga de datos + KPIs
   /// ─────────────────────────────────────────────────────
   Future<void> loadReport() async {
     state = state.copyWith(loading: true, error: null);
@@ -151,6 +160,7 @@ void setDeptFilter(String? deptId) {
     try {
       final f = state.filter;
 
+      // ✅ Obtener registros detallados
       final data = await _repo.fetchDetailedDailyReport(
         start: f.range.start,
         end: f.range.end,
@@ -159,11 +169,23 @@ void setDeptFilter(String? deptId) {
         userId: f.userId,
       );
 
+      // Calcular KPIs desde `data`
+     // Contar BOOKED y AVAILABLE 
+final totalBooked = data.where((e) => e.status == "BOOKED").length;
+final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
+
+
+      // ✅ Total cocheras del establecimiento
+      final totalSpots = await _repo.countTotalSpots(f.establishmentId!);
+
       print("✅ Reporte cargado: ${data.length} filas");
 
       state = state.copyWith(
         loading: false,
         detailed: data,
+        totalSpots: totalSpots,
+        totalBooked: totalBooked,
+        totalLiberated: totalLiberated,
       );
     } catch (e, st) {
       print("❌ Error reporte: $e\n$st");

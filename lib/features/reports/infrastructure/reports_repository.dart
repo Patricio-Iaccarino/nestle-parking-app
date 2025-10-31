@@ -118,4 +118,15 @@ class ReportsRepository {
     final doc = await _db.collection(departmentsCol).doc(id).get();
     return _deptCache[id] = doc.data();
   }
+
+Future<int> countTotalSpots(String establishmentId) async {
+  final snap = await _db
+      .collection(spotsCol)
+      .where('establishmentId', isEqualTo: establishmentId)
+      .get();
+
+  return snap.size;
+}
+
+
 }

@@ -109,6 +109,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             onUserSelected: controller.setUserFilter,
           ),
 
+          _KpiRow(),
+
           _TotalsRow(records: filtered),
 
           const Divider(height: 1),
@@ -178,6 +180,9 @@ class _DateRangePicker extends StatelessWidget {
     );
   }
 }
+
+
+
 
 class _FiltersRow extends ConsumerStatefulWidget {
   final Function(String) onSearch;
@@ -287,6 +292,56 @@ class _FiltersRowState extends ConsumerState<_FiltersRow> {
   }
 }
 
+class _KpiRow extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(reportsControllerProvider);
+
+    final occupancy = state.totalSpots == 0
+        ? 0
+        : (state.totalBooked / state.totalSpots * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _kpiCard("Ocupación", "$occupancy%"),
+          _kpiCard("Liberadas", "${state.totalLiberated}"),
+          _kpiCard("Reservadas", "${state.totalBooked}"),
+          _kpiCard("Total Cocheras", "${state.totalSpots}"),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiCard(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0,2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 
 

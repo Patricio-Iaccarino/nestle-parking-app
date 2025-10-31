@@ -4,7 +4,6 @@ import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_pr
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 
-
 class GlobalUsersScreen extends ConsumerStatefulWidget {
   const GlobalUsersScreen({super.key});
 
@@ -20,14 +19,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     super.initState();
     Future.microtask(() async {
       final controller = ref.read(adminControllerProvider.notifier);
-      final authState = ref.read(authControllerProvider);
-      final user = authState.value;
-
-      if (user != null && user.establishmentId.isNotEmpty) {
-        await controller.loadUsersForCurrentEstablishment(user.establishmentId);
-      } else {
-        await controller.loadEstablishmentsAndAllUsers();
-      }
+      await controller.loadInitialData();
     });
   }
 
@@ -49,11 +41,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              final authState = ref.read(authControllerProvider);
-              final user = authState.value;
-              if (user != null && user.establishmentId.isNotEmpty) {
-                controller.loadUsersForCurrentEstablishment(user.establishmentId);
-              }
+              // --- CAMBIO CLAVE ---
+              controller.loadInitialData();
+              // --- FIN DEL CAMBIO ---
             },
           ),
           IconButton(
@@ -80,79 +70,84 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
             child: state.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : users.isEmpty
-                    ? const Center(child: Text('No hay usuarios registrados.'))
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columns: const [
-                            DataColumn(label: Text('Nombre')),
-                            DataColumn(label: Text('Email')),
-                            DataColumn(label: Text('Rol')),
-                            DataColumn(label: Text('Departamento')),
-                            DataColumn(label: Text('Cochera')),
-                            DataColumn(label: Text('Acciones')),
+                ? const Center(child: Text('No hay usuarios registrados.'))
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Nombre')),
+                        DataColumn(label: Text('Email')),
+                        DataColumn(label: Text('Rol')),
+                        DataColumn(label: Text('Departamento')),
+                        DataColumn(label: Text('Cochera')),
+                        DataColumn(label: Text('Acciones')),
+                      ],
+                      rows: users.map((user) {
+                        String departmentName = '-';
+                        try {
+                          departmentName = state.departments
+                              .firstWhere((d) => d.id == user.departmentId)
+                              .name;
+                        } catch (_) {
+                          departmentName = '-';
+                        }
+
+                        String spotNumber = '-';
+                        try {
+                          spotNumber = state.parkingSpots
+                              .firstWhere((s) => s.assignedUserId == user.id)
+                              .spotNumber;
+                        } catch (_) {
+                          spotNumber = '-';
+                        }
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(user.displayName)),
+                            DataCell(Text(user.email)),
+                            DataCell(Text(user.role)),
+                            DataCell(Text(departmentName)),
+                            DataCell(Text(spotNumber)),
+                            DataCell(
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _showEditDialog(
+                                      context,
+                                      controller,
+                                      user,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    color: Colors.red,
+                                    onPressed: () => _confirmDelete(
+                                      context,
+                                      controller,
+                                      user.id,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
-                          rows: users.map((user) {
-                            String departmentName = '-';
-                            try {
-                              departmentName = state.departments
-                                  .firstWhere((d) => d.id == user.departmentId)
-                                  .name;
-                            } catch (_) {
-                              departmentName = '-';
-                            }
-
-                            String spotNumber = '-';
-                            try {
-                              spotNumber = state.parkingSpots
-                                  .firstWhere((s) => s.assignedUserId == user.id)
-                                  .spotNumber;
-                            } catch (_) {
-                              spotNumber = '-';
-                            }
-
-                            return DataRow(
-                              cells: [
-                                DataCell(Text(user.displayName)),
-                                DataCell(Text(user.email)),
-                                DataCell(Text(user.role)),
-                                DataCell(Text(departmentName)),
-                                DataCell(Text(spotNumber)),
-                                DataCell(Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit),
-                                      onPressed: () => _showEditDialog(
-                                          context, controller, user),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      color: Colors.red,
-                                      onPressed: () =>
-                                          _confirmDelete(context, controller, user.id),
-                                    ),
-                                  ],
-                                )),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  // --- NUEVO MÉTODO DE CONFIRMACIÓN ---
   Future<void> _confirmDelete(
     BuildContext context,
     AdminController controller,
     String userId,
   ) async {
     bool isDeleting = false;
-    final authUser = ref.read(authControllerProvider).value;
-    final currentEstablishmentId = authUser?.establishmentId ?? '';
 
     await showDialog(
       context: context,
@@ -191,11 +186,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                         setState(() => isDeleting = true);
                         await controller.deleteUser(userId);
 
-                        // Recargamos la lista del establecimiento actual
-                        if (currentEstablishmentId.isNotEmpty) {
-                          await controller.loadUsersForCurrentEstablishment(
-                              currentEstablishmentId);
-                        }
+                        await controller.loadInitialData();
 
                         setState(() => isDeleting = false);
                         if (context.mounted) Navigator.pop(context);
@@ -218,7 +209,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 
   // --- DIALOGO CREAR USUARIO (SIN CAMBIOS) ---
   Future<void> _showCreateUserDialog(
-      BuildContext context, AdminController controller) async {
+    BuildContext context,
+    AdminController controller,
+  ) async {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     String selectedRole = 'TITULAR';
@@ -255,25 +248,40 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     initialValue: selectedRole,
                     decoration: const InputDecoration(labelText: 'Rol'),
                     items: const [
-                      DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
-                      DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
+                      DropdownMenuItem(
+                        value: 'TITULAR',
+                        child: Text('Titular'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'SUPLENTE',
+                        child: Text('Suplente'),
+                      ),
                       DropdownMenuItem(value: 'ADMIN', child: Text('Admin')),
-                      DropdownMenuItem(value: 'SEGURIDAD', child: Text('Seguridad')),
+                      DropdownMenuItem(
+                        value: 'SEGURIDAD',
+                        child: Text('Seguridad'),
+                      ),
                     ],
-                    onChanged: (val) => setState(() => selectedRole = val ?? 'TITULAR'),
+                    onChanged: (val) =>
+                        setState(() => selectedRole = val ?? 'TITULAR'),
                   ),
                   const SizedBox(height: 8),
                   if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                     DropdownButtonFormField<String>(
                       initialValue: selectedDepartmentId,
-                      decoration: const InputDecoration(labelText: 'Departamento'),
+                      decoration: const InputDecoration(
+                        labelText: 'Departamento',
+                      ),
                       items: departments
-                          .map((d) => DropdownMenuItem(
-                                value: d.id,
-                                child: Text(d.name),
-                              ))
+                          .map(
+                            (d) => DropdownMenuItem(
+                              value: d.id,
+                              child: Text(d.name),
+                            ),
+                          )
                           .toList(),
-                      onChanged: (val) => setState(() => selectedDepartmentId = val),
+                      onChanged: (val) =>
+                          setState(() => selectedDepartmentId = val),
                     ),
                   if (isSaving) ...[
                     const SizedBox(height: 20),
@@ -290,8 +298,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
             actions: [
               if (!isSaving)
                 TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar')),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
               ElevatedButton(
                 onPressed: isSaving
                     ? null
@@ -300,7 +309,8 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             emailController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('Complete todos los campos')),
+                              content: Text('Complete todos los campos'),
+                            ),
                           );
                           return;
                         }
@@ -314,18 +324,16 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           role: selectedRole,
                           establishmentId: currentEstablishmentId,
                           establishmentName: '',
-                          vehiclePlates: const [], 
+                          vehiclePlates: const [],
                           departmentId:
-                              (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
-                                  ? (selectedDepartmentId ?? '')
-                                  : '',
+                              (selectedRole == 'TITULAR' ||
+                                  selectedRole == 'SUPLENTE')
+                              ? (selectedDepartmentId ?? '')
+                              : '',
                         );
 
                         await controller.createUser(newUser);
-                        if (currentEstablishmentId.isNotEmpty) {
-                          await controller.loadUsersForCurrentEstablishment(
-                              currentEstablishmentId);
-                        }
+                        await controller.loadInitialData();
 
                         setState(() => isSaving = false);
                         if (context.mounted) Navigator.pop(context);
@@ -341,7 +349,10 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 
   // --- EDITAR USUARIO (SIN CAMBIOS) ---
   Future<void> _showEditDialog(
-      BuildContext context, AdminController controller, AppUser user) async {
+    BuildContext context,
+    AdminController controller,
+    AppUser user,
+  ) async {
     final nameController = TextEditingController(text: user.displayName);
     final emailController = TextEditingController(text: user.email);
     String selectedRole = user.role;
@@ -376,8 +387,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final updated = user.copyWith(
@@ -386,13 +398,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                 role: selectedRole,
               );
               await controller.updateUser(updated);
-
-              final authUser = ref.read(authControllerProvider).value;
-              final currentEstablishmentId = authUser?.establishmentId ?? '';
-              if (currentEstablishmentId.isNotEmpty) {
-                await controller
-                    .loadUsersForCurrentEstablishment(currentEstablishmentId);
-              }
+              await controller.loadInitialData();
 
               if (context.mounted) Navigator.pop(context);
             },

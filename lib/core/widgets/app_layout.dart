@@ -39,9 +39,8 @@ class AppLayout extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
     final isSuperAdmin = authState.value?.role == 'superadmin';
     final user = authState.value;
-    final userRole = user?.role ?? ''; // Rol con valor seguro
-    final establishmentName =
-        user?.establishmentName ?? ''; // Nombre del establecimiento
+    final userRole = user?.role ?? '';
+    final establishmentName = user?.establishmentName ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -100,26 +99,46 @@ class AppLayout extends ConsumerWidget {
   }
 }
 
-// ======================================================
-// SUPERADMIN NAVIGATION RAIL
-// ======================================================
-
 class _SuperAdminNavigationRail extends StatelessWidget {
+  // --- 👇 AÑADIDO ---
+  // Lógica para determinar el índice seleccionado
+  int _getSelectedIndex(BuildContext context) {
+    final location = GoRouterState.of(context).uri.toString();
+    if (location.startsWith('/establishments')) return 0;
+    if (location.startsWith('/admins')) return 1; // 👈 Nuevo
+    return 0; // Default
+  }
+
+  // --- 👇 AÑADIDO ---
+  // Lógica para navegar
+  void _onDestinationSelected(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/establishments');
+        break;
+      case 1:
+        context.go('/admins'); // 👈 Nuevo
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
-    final selectedIndex = location.startsWith('/establishments') ? 0 : 0;
-
+    // --- 👇 CAMBIOS AQUÍ ---
     return NavigationRail(
-      selectedIndex: selectedIndex,
-      onDestinationSelected: (index) {
-        context.go('/establishments');
-      },
+      selectedIndex: _getSelectedIndex(context), // 👈 Corregido
+      onDestinationSelected: (index) =>
+          _onDestinationSelected(context, index), // 👈 Corregido
       labelType: NavigationRailLabelType.all,
       destinations: const [
         NavigationRailDestination(
           icon: Icon(Icons.business_rounded),
           label: Text('Establecimientos'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.admin_panel_settings_outlined),
+          selectedIcon: Icon(Icons.admin_panel_settings),
+          label: Text('Admins'), // Nueva pantalla
         ),
       ],
     );

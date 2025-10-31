@@ -58,20 +58,73 @@ class AdminController extends StateNotifier<AdminState> {
 
   AdminController(this._repository) : super(AdminState());
 
-  // --- ESTABLISHMENTS ---
-  Future<void> loadEstablishmentsAndAllUsers() async {
+  
+  Future<void> loadInitialData() async {
     state = state.copyWith(isLoading: true, error: null);
-    try {
-      final establishmentsFuture = _repository.getAllEstablishments();
-      final usersFuture = _repository.getAllUsers();
-      final results = await Future.wait([establishmentsFuture, usersFuture]);
 
+    try {
+      // --- 1. OBTENER DATOS DEL USUARIO LOGUEADO ---
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) throw Exception('Usuario no autenticado');
+      final currentUser = await _repository.getUserProfile(firebaseUser.uid);
+
+      final String userRole = currentUser.role.toLowerCase();
+      final String userEstId = currentUser.establishmentId;
+
+      
+
+      // Ambos roles pueden ver los establecimientos
+      final establishmentsFuture = _repository.getAllEstablishments();
+
+      Future<List<AppUser>> usersFuture;
+      Future<List<Department>> departmentsFuture;
+
+      if (userRole == 'superadmin') {
+        // SuperAdmin: Trae TODOS los usuarios
+        usersFuture = _repository.getAllUsers();
+        // SuperAdmin: No ve departamentos, le damos una lista vacía
+        departmentsFuture = Future.value(<Department>[]);
+      } else if (userRole == 'admin') {
+        // Admin: Trae SÓLO usuarios de su establishment
+        usersFuture = _repository.getUsersForEstablishment(userEstId);
+        // Admin: Trae SÓLO departamentos de su establishment
+        departmentsFuture = _repository.getDepartmentsByEstablishment(
+          userEstId,
+        );
+      } else {
+        // Si es TITULAR, SUPLENTE, etc. no debería estar aquí
+        throw Exception('Acceso no autorizado a esta pantalla');
+      }
+
+      // --- 3. EJECUTAR CONSULTAS ---
+      final results = await Future.wait([
+        establishmentsFuture,
+        usersFuture,
+        departmentsFuture,
+      ]);
+
+      // --- 4. PROCESAR RESULTADOS ---
       final establishments = results[0] as List<Establishment>;
       final users = results[1] as List<AppUser>;
+      final departments = results[2] as List<Department>;
 
+      // --- 5. FILTRO DE SEGURIDAD FINAL (en la App) ---
+      List<AppUser> finalUserList;
+      if (userRole == 'admin') {
+        // Filtramos la lista para quitar roles sensibles
+        finalUserList = users
+            .where((user) => user.role != 'admin' && user.role != 'superadmin')
+            .toList();
+      } else {
+        // El SuperAdmin sí ve a todos
+        finalUserList = users;
+      }
+
+      // --- 6. ACTUALIZAR ESTADO ---
       state = state.copyWith(
         establishments: establishments,
-        users: users,
+        users: finalUserList, // Lista filtrada
+        departments: departments, // Lista nueva
         isLoading: false,
       );
     } catch (e) {
@@ -79,10 +132,11 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
+  // --- ESTABLISHMENTS ---
   Future<void> createEstablishment(Establishment establishment) async {
     try {
       await _repository.createEstablishment(establishment);
-      await loadEstablishmentsAndAllUsers();
+      await loadInitialData(); // <-- ACTUALIZADO
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -91,7 +145,7 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> updateEstablishment(Establishment establishment) async {
     try {
       await _repository.updateEstablishment(establishment);
-      await loadEstablishmentsAndAllUsers();
+      await loadInitialData(); // <-- ACTUALIZADO
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -100,18 +154,39 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> deleteEstablishment(String id) async {
     try {
       await _repository.deleteEstablishment(id);
-      await loadEstablishmentsAndAllUsers();
+      await loadInitialData(); // <-- ACTUALIZADO
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
   // --- DEPARTMENTS ---
+  // 🚀 MÉTODO 'loadDepartments' ACTUALIZADO (AHORA ES INTELIGENTE)
   Future<void> loadDepartments(String establishmentId) async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
+      // --- 1. OBTENER PERFIL DEL USUARIO LOGUEADO ---
+      // (Asumo que tienes el método 'getUserProfile' en tu repositorio)
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) throw Exception('Usuario no autenticado');
+      final currentUser = await _repository.getUserProfile(firebaseUser.uid);
+
+      final String userRole = currentUser.role.toLowerCase();
+      String idParaBuscar;
+
+      // --- 2. DECIDIR QUÉ ID USAR ---
+      if (userRole == 'superadmin') {
+        // Un SuperAdmin SÍ puede usar el ID que le pasa la UI
+        idParaBuscar = establishmentId;
+      } else {
+        // Un Admin DEBE usar su PROPIO ID. Ignoramos el 'establishmentId'
+        // que viene de la UI para cumplir la regla de seguridad.
+        idParaBuscar = currentUser.establishmentId;
+      }
+
+      // --- 3. CARGAR DATOS ---
       final result = await _repository.getDepartmentsByEstablishment(
-        establishmentId,
+        idParaBuscar, // <-- Usamos el ID seguro
       );
       state = state.copyWith(departments: result, isLoading: false);
     } catch (e) {
@@ -149,6 +224,7 @@ class AdminController extends StateNotifier<AdminState> {
   }
 
   // --- PARKING SPOTS ---
+  // (Sin cambios en esta sección)
   Future<void> loadParkingSpots(String departmentId) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -190,6 +266,7 @@ class AdminController extends StateNotifier<AdminState> {
   }
 
   // --- USERS ---
+  
   Future<void> loadUsers(String departmentId) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -213,9 +290,18 @@ class AdminController extends StateNotifier<AdminState> {
       final newUserId = userCredential.user!.uid;
       await _auth.sendPasswordResetEmail(email: user.email);
       final userWithId = user.copyWith(id: newUserId);
+      
       await _repository.createUser(userWithId);
-      await loadUsers(user.departmentId);
+      
+      // --- 👇 CAMBIO CLAVE ---
+      // Recargamos toda la data inicial. Esto funciona para
+      // el Admin (refresca su lista) y para el SuperAdmin (refresca la suya)
+      await loadInitialData();
+      // ---------------------
+
     } on FirebaseAuthException catch (e) {
+      // Si falla, igual recargamos para que el estado no quede 'colgado'
+      await loadInitialData();
       if (e.code == 'email-already-in-use') {
         state = state.copyWith(
           error: 'El correo electrónico ya está registrado.',
@@ -228,7 +314,8 @@ class AdminController extends StateNotifier<AdminState> {
         );
       }
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
+      state = state.copyWith(error: e.toString());
+      await loadInitialData(); // Recargamos también en otros errores
     } finally {
       state = state.copyWith(isLoading: false);
     }
@@ -237,7 +324,10 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> updateUser(AppUser user) async {
     try {
       await _repository.updateUser(user);
-      await loadUsers(user.departmentId);
+      
+      // --- 👇 CAMBIO CLAVE ---
+      await loadInitialData();
+      // ---------------------
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -245,9 +335,12 @@ class AdminController extends StateNotifier<AdminState> {
 
   Future<void> deleteUser(String id) async {
     try {
-      final user = state.users.firstWhere((user) => user.id == id);
+      // No necesitamos buscar el 'user' en el 'state'
       await _repository.deleteUser(id);
-      await loadUsers(user.departmentId);
+      
+      // --- 👇 CAMBIO CLAVE ---
+      await loadInitialData();
+      // ---------------------
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -286,58 +379,21 @@ class AdminController extends StateNotifier<AdminState> {
   }
 
   Future<void> loadUsersForCurrentEstablishment(String establishmentId) async {
-    state = state.copyWith(isLoading: true);
-    try {
-      final departments = await _repository.getDepartmentsByEstablishment(
-        establishmentId,
-      );
-      final List<AppUser> allUsers = [];
-      for (final dept in departments) {
-        final users = await _repository.getUsersByDepartment(dept.id);
-        allUsers.addAll(users);
-      }
-
-      final parkingSpots = await _repository.getParkingSpotsByEstablishment(
-        establishmentId,
-      );
-
-      state = state.copyWith(
-        users: allUsers,
-        departments: departments,
-        parkingSpots: parkingSpots,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-    }
+    await loadInitialData();
   }
 
+  // --- MÉTODO DE BÚSQUEDA DE ADMINS (YA OPTIMIZADO) ---
   Future<void> searchUsers(String query) async {
     state = state.copyWith(isLoading: true, searchResults: [], error: null);
     try {
       final q = query.trim().toLowerCase();
-
-      // Obtenemos todos los usuarios una sola vez
-      final allUsers = await _repository.getAllUsers();
-
-      // Filtramos para encontrar SÓLO usuarios 'admin'
-      final adminUsers = allUsers.where((user) {
-        final role = user.role.toLowerCase();
-
-        // LÓGICA CORREGIDA:
-        // Buscamos los que SÍ SON 'admin'
-        final isAdmin = role == 'admin';
-
-        return isAdmin;
-      }).toList();
+      final adminUsers = await _repository.getAdminUsers();
 
       List<AppUser> filteredUsers;
 
-      // LÓGICA CLAVE: Si la búsqueda está vacía, muestra TODOS los 'admin'
       if (q.isEmpty) {
         filteredUsers = adminUsers;
       } else {
-        // Si hay búsqueda, filtra sobre los 'admin'
         filteredUsers = adminUsers.where((user) {
           final name = user.displayName.toLowerCase();
           final email = user.email.toLowerCase();
@@ -355,13 +411,12 @@ class AdminController extends StateNotifier<AdminState> {
     }
   }
 
-  // ✨ MÉTODO NUEVO: Para cargar la lista inicial
   Future<void> loadInitialAssignableUsers() async {
-    // Simplemente llama a searchUsers con una query vacía
     await searchUsers('');
   }
 
   // --- RESERVATIONS ---
+  // (Sin cambios en esta sección)
   Future<void> loadReservations(
     String establishmentId, {
     DateTime? date,

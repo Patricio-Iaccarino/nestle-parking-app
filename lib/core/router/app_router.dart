@@ -1,4 +1,5 @@
 import 'package:cocheras_nestle_web/core/widgets/app_layout.dart';
+import 'package:cocheras_nestle_web/features/admin/presentation/screen/admin_users_screen.dart';
 import 'package:cocheras_nestle_web/features/departments/presentation/screens/departments_screen.dart';
 import 'package:cocheras_nestle_web/features/establishments/presentation/screens/establishments_screen.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
@@ -10,7 +11,7 @@ import 'package:cocheras_nestle_web/features/users/presentation/users_screen.dar
 import 'package:cocheras_nestle_web/features/users/presentation/global_users_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cocheras_nestle_web/features/reports/presentation/reports_screen.dart';
+import 'package:cocheras_nestle_web/features/reports/presentation/screens/reports_screen.dart';
 
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -57,6 +58,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/establishments',
             builder: (context, state) => const EstablishmentsScreen(),
           ),
+
+          GoRoute(path: '/admins', builder: (context, state) {
+            // Redirigir si el usuario no es superadmin
+            if (user == null || user.role != 'superadmin') {
+              return const DashboardScreen();
+            }
+            return const AdminUsersScreen();
+          }),
 
           // ======================================================
           // DEPARTAMENTOS

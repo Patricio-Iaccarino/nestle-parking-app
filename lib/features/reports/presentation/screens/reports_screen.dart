@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../application/reports_controller.dart';
-import '../domain/report_models.dart';
-import '../../../core/services/export_service.dart';
+import '../../application/reports_controller.dart';
+import '../../domain/report_models.dart';
+import '../../../../core/services/export_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../features/auth/presentation/auth_controller.dart';
+import '../../../auth/presentation/auth_controller.dart';
 
 // 🔹 Provider para departamentos filtrados por establecimiento
 final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../domain/report_models.dart';
+import '../../domain/report_models.dart';
 
 class ReportsRepository {
   final FirebaseFirestore _db;

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../domain/report_models.dart';
-import '../infrastructure/reports_repository.dart';
+import '../data/repositories/reports_repository.dart';
 
 // ✅ auth provider
 import '../../../features/auth/presentation/auth_controller.dart';

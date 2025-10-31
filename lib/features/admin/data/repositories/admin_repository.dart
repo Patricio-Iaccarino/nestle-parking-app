@@ -81,14 +81,8 @@ class AdminRepository {
   }
 
   Future<void> createParkingSpot(ParkingSpot spot) async {
-    // 1. Pide a Firestore que genere una referencia con un ID nuevo
     final docRef = _firestore.collection('parkingSpots').doc();
-
-    // 2. Usa copyWith para crear un nuevo objeto 'spot' con ese ID
-    //    (Asumo que tu modelo ParkingSpot tiene 'copyWith' y 'toMap' como los otros)
     final spotWithId = spot.copyWith(id: docRef.id);
-
-    // 3. Guarda el objeto con el ID correcto
     await docRef.set(spotWithId.toMap());
   }
 
@@ -105,6 +99,40 @@ class AdminRepository {
   }
 
   // --- 🔹 USERS ---
+
+  // --- 🚀 MÉTODO FALTANTE 1 ---
+  Future<AppUser> getUserProfile(String uid) async {
+    final docSnap = await _firestore.collection('users').doc(uid).get();
+    if (!docSnap.exists) {
+      throw Exception('No se encontró el perfil de usuario.');
+    }
+    return AppUser.fromMap(docSnap.data()!,  docSnap.id);
+  }
+
+  // --- 🚀 MÉTODO FALTANTE 2 ---
+  Future<List<AppUser>> getUsersForEstablishment(String establishmentId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('establishmentId', isEqualTo: establishmentId)
+        .get();
+    return snapshot.docs
+        .map((doc) => AppUser.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  // --- 🚀 MÉTODO FALTANTE 3 ---
+  Future<List<AppUser>> getAdminUsers() async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'admin')
+        .get();
+    return snapshot.docs
+        .map((doc) => AppUser.fromMap(doc.data(),  doc.id))
+        .toList();
+  }
+
+  // --- (Métodos existentes) ---
+
   Future<List<AppUser>> getUsersByDepartment(String departmentId) async {
     final snapshot = await _firestore
         .collection('users')
@@ -164,14 +192,11 @@ class AdminRepository {
       if (establishmentDoc.exists) {
         establishmentName =
             establishmentDoc.data()?['name'] ?? establishmentName;
-        // ------------------------------------
       } else {
         print('   ❌ Establecimiento NO encontrado con ID: $establishmentId');
       }
-      // --------------------------------------------------
     } catch (e) {
       print('   ❗️ ERROR buscando nombre de establecimiento: $e');
-      // ---------------------------------------------
     }
 
     await _firestore.collection('users').doc(userId).update({
@@ -190,45 +215,44 @@ class AdminRepository {
 
   // --- 🔹 RESERVATIONS (NUEVO) ---
   Future<List<SpotRelease>> getReservations(
-  String establishmentId, {
-  DateTime? date,
-}) async {
-  try {
-    Query query = _firestore
-        .collection('spotReleases')
-        .where('establishmentId', isEqualTo: establishmentId);
+    String establishmentId, {
+    DateTime? date,
+  }) async {
+    try {
+      Query query = _firestore
+          .collection('spotReleases')
+          .where('establishmentId', isEqualTo: establishmentId);
 
-    if (date != null) {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      if (date != null) {
+        final startOfDay = DateTime(date.year, date.month, date.day);
+        final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-      query = query
-          .where('releaseDate', isGreaterThanOrEqualTo: startOfDay)
-          .where('releaseDate', isLessThanOrEqualTo: endOfDay);
-    }
-
-    final snapshot = await query.get();
-
-    print("✅ Firestore devolvió ${snapshot.docs.length} documentos");
-
-    for (var doc in snapshot.docs) {
-      print("📄 DOC: ${doc.id} => ${doc.data()}");
-    }
-
-    return snapshot.docs.map((doc) {
-      try {
-        return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      } catch (e) {
-        print("❌ ERROR parseando doc ${doc.id}: $e");
-        rethrow;
+        query = query
+            .where('releaseDate', isGreaterThanOrEqualTo: startOfDay)
+            .where('releaseDate', isLessThanOrEqualTo: endOfDay);
       }
-    }).toList();
-  } catch (e) {
-    print("❌ ERROR TOTAL getReservations: $e");
-    throw Exception('No se pudieron cargar las reservaciones.');
-  }
-}
 
+      final snapshot = await query.get();
+
+      print("✅ Firestore devolvió ${snapshot.docs.length} documentos");
+
+      for (var doc in snapshot.docs) {
+        print("📄 DOC: ${doc.id} => ${doc.data()}");
+      }
+
+      return snapshot.docs.map((doc) {
+        try {
+          return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+        } catch (e) {
+          print("❌ ERROR parseando doc ${doc.id}: $e");
+          rethrow;
+        }
+      }).toList();
+    } catch (e) {
+      print("❌ ERROR TOTAL getReservations: $e");
+      throw Exception('No se pudieron cargar las reservaciones.');
+    }
+  }
 
   Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
     String establishmentId,

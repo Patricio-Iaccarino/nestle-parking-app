@@ -122,11 +122,6 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             DropdownButtonFormField<String>(
               initialValue: role,
               items: const [
-                DropdownMenuItem(
-                  value: 'SUPERADMIN',
-                  child: Text('Superadmin'),
-                ),
-                DropdownMenuItem(value: 'ADMIN', child: Text('Admin')),
                 DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
                 DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
                 DropdownMenuItem(value: 'SEGURIDAD', child: Text('Seguridad')),

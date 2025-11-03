@@ -1,14 +1,13 @@
+import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// --- 👇 CAMBIO 1: Importar el paquete ---
 import 'package:data_table_2/data_table_2.dart';
-// ------------------------------------
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:go_router/go_router.dart';
 
 class DepartmentsScreen extends ConsumerStatefulWidget {
-  final String establishmentId; // Necesario para filtrar departamentos
+  final String establishmentId;
   const DepartmentsScreen({super.key, required this.establishmentId});
 
   @override
@@ -19,18 +18,36 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   @override
   void initState() {
     super.initState();
+    // --- 👇 CAMBIO 2: El initState ahora llama a AMBOS controllers ---
     Future.microtask(() {
-      final controller = ref.read(adminControllerProvider.notifier);
-      controller.loadDepartments(widget.establishmentId);
-      // Traemos también usuarios y cocheras para poder contarlos
-      controller.loadDashboardData(widget.establishmentId);
+      // 1. Llama al nuevo controller para cargar los departamentos
+      ref
+          .read(departmentsControllerProvider.notifier)
+          .load(widget.establishmentId);
+
+      // 2. Llama al viejo controller para cargar spots y users
+      //    (Esto asume que arreglaste 'loadDashboardData' como te indiqué)
+      ref
+          .read(adminControllerProvider.notifier)
+          .loadDashboardData(widget.establishmentId);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(adminControllerProvider);
-    final controller = ref.read(adminControllerProvider.notifier);
+    // --- 👇 CAMBIO 3: Miramos AMBOS providers ---
+    // 1. El nuevo provider para la lista de departamentos
+    final departmentState = ref.watch(departmentsControllerProvider);
+    final departmentsController = ref.read(
+      departmentsControllerProvider.notifier,
+    );
+
+    // 2. El provider antiguo, para 'users' y 'parkingSpots'
+    final adminState = ref.watch(adminControllerProvider);
+    // -------------------------------------
+
+    // El estado de carga depende de AMBOS
+    final bool isLoading = departmentState.isLoading || adminState.isLoading;
 
     return Scaffold(
       appBar: AppBar(
@@ -38,43 +55,53 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => controller.loadDepartments(widget.establishmentId),
+            // --- 👇 CAMBIO 4: Refrescamos AMBOS ---
+            onPressed: () {
+              ref
+                  .read(departmentsControllerProvider.notifier)
+                  .load(widget.establishmentId);
+              ref
+                  .read(adminControllerProvider.notifier)
+                  .loadDashboardData(widget.establishmentId);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddDialog(context, controller),
+            // Pasamos el NUEVO controller al diálogo
+            onPressed: () => _showAddDialog(context, departmentsController),
           ),
         ],
       ),
-      // --- 👇 CAMBIO 2: El 'body' se simplifica ---
-      body: state.isLoading
+      body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.all(16), // Mantenemos tu padding
+              padding: const EdgeInsets.all(16),
               child: DataTable2(
-                // Propiedad para cuando la lista está vacía
-                empty: const Center(child: Text('No hay departamentos registrados.')),
-                // Ancho mínimo (buena práctica)
-                minWidth: 700, 
-                // Mantenemos tu espaciado
+                // --- 👇 CAMBIO 5: Usamos el nuevo estado ---
+                empty: Center(
+                  child: Text(
+                    departmentState.error ??
+                        adminState.error ??
+                        'No hay departamentos registrados.',
+                  ),
+                ),
+                minWidth: 700,
                 columnSpacing: 28,
-                // Reemplazamos DataColumn por DataColumn2 y añadimos 'size'
                 columns: const [
                   DataColumn2(label: Text('Nombre'), size: ColumnSize.M),
                   DataColumn2(label: Text('Descripción'), size: ColumnSize.L),
                   DataColumn2(label: Text('Cocheras'), size: ColumnSize.S),
                   DataColumn2(label: Text('Usuarios'), size: ColumnSize.S),
-                  DataColumn2(label: Text('Acciones'), size: ColumnSize.L), // 'L' por los 4 botones
+                  DataColumn2(label: Text('Acciones'), size: ColumnSize.L),
                 ],
-                // ¡Esta parte (rows) no cambia en absoluto!
-                rows: state.departments.map((dept) {
-                  // Contar cocheras asociadas a este departamento
-                  final spotsInDept = state.parkingSpots
+                // Usamos la lista de departamentos del NUEVO estado
+                rows: departmentState.departments.map((dept) {
+                  // Seguimos usando 'parkingSpots' y 'users' del VIEJO estado
+                  final spotsInDept = adminState.parkingSpots
                       .where((s) => s.departmentId == dept.id)
                       .length;
 
-                  // Contar usuarios asociados a este departamento
-                  final usersInDept = state.users
+                  final usersInDept = adminState.users
                       .where((u) => u.departmentId == dept.id)
                       .length;
 
@@ -98,7 +125,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             ),
                             IconButton(
                               icon: const Icon(
-                                  Icons.directions_car_filled_outlined),
+                                Icons.directions_car_filled_outlined,
+                              ),
                               tooltip: 'Ver Cocheras',
                               onPressed: () {
                                 context.push(
@@ -109,15 +137,23 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             IconButton(
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar Departamento',
+                              // Pasamos el NUEVO controller
                               onPressed: () => _showEditDialog(
-                                  context, controller, dept),
+                                context,
+                                departmentsController,
+                                dept,
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete),
                               tooltip: 'Eliminar Departamento',
                               color: Colors.red,
+                              // Pasamos el NUEVO controller
                               onPressed: () => _confirmDelete(
-                                  context, controller, dept.id),
+                                context,
+                                departmentsController,
+                                dept.id,
+                              ),
                             ),
                           ],
                         ),
@@ -130,12 +166,13 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  // --- (SIN CAMBIOS DESDE AQUÍ) ---
-  // (Pega aquí tus 3 métodos: _showAddDialog,
-  //  _showEditDialog, y _confirmDelete)
+  // --- 👇 CAMBIO 6: Actualizamos la firma de los diálogos ---
 
   Future<void> _showAddDialog(
-      BuildContext context, AdminController controller) async {
+    BuildContext context,
+    DepartmentsController controller,
+  ) async {
+    // <-- TIPO CAMBIADO
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
 
@@ -167,10 +204,12 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 id: '', // Se genera en el repository
                 name: nameController.text.trim(),
                 description: descriptionController.text.trim(),
-                establishmentId: widget.establishmentId,
+                establishmentId:
+                    widget.establishmentId, // <-- Lo toma del widget
                 createdAt: DateTime.now(),
               );
-              await controller.createDepartment(newDept);
+              // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
+              await controller.create(newDept);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar'),
@@ -181,10 +220,15 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   }
 
   Future<void> _showEditDialog(
-      BuildContext context, AdminController controller, Department dept) async {
+    BuildContext context,
+    DepartmentsController controller,
+    Department dept,
+  ) async {
+    // <-- TIPO CAMBIADO
     final nameController = TextEditingController(text: dept.name);
-    final descriptionController =
-        TextEditingController(text: dept.description ?? '');
+    final descriptionController = TextEditingController(
+      text: dept.description ?? '',
+    );
 
     await showDialog(
       context: context,
@@ -214,7 +258,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 name: nameController.text.trim(),
                 description: descriptionController.text.trim(),
               );
-              await controller.updateDepartment(updatedDept);
+              // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
+              await controller.update(updatedDept);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar cambios'),
@@ -225,7 +270,11 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, AdminController controller, String id) async {
+    BuildContext context,
+    DepartmentsController controller,
+    String id,
+  ) async {
+    // <-- TIPO CAMBIADO
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -248,7 +297,9 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
 
     if (confirm == true) {
-      await controller.deleteDepartments(id);
+      // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
+      // Le pasamos el 'establishmentId' para que sepa qué lista recargar
+      await controller.delete(id, widget.establishmentId);
     }
   }
 }

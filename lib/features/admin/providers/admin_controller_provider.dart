@@ -1,16 +1,16 @@
-import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
+import 'package:cocheras_nestle_web/features/departments/data/repository/departments_repository.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/admin/data/repositories/admin_repository.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_repository_provider.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 class AdminState {
   final bool isLoading;
   final String? error;
-  final List<Department> departments;
   final List<ParkingSpot> parkingSpots;
   final List<AppUser> users;
   final List<AppUser> searchResults;
@@ -19,7 +19,7 @@ class AdminState {
   AdminState({
     this.isLoading = false,
     this.error,
-    this.departments = const [],
+
     this.parkingSpots = const [],
     this.users = const [],
     this.searchResults = const [],
@@ -29,7 +29,7 @@ class AdminState {
   AdminState copyWith({
     bool? isLoading,
     String? error,
-    List<Department>? departments,
+
     List<ParkingSpot>? parkingSpots,
     List<AppUser>? users,
     List<AppUser>? searchResults,
@@ -38,7 +38,7 @@ class AdminState {
     return AdminState(
       isLoading: isLoading ?? this.isLoading,
       error: error,
-      departments: departments ?? this.departments,
+
       parkingSpots: parkingSpots ?? this.parkingSpots,
       users: users ?? this.users,
       searchResults: searchResults ?? this.searchResults,
@@ -49,52 +49,46 @@ class AdminState {
 
 class AdminController extends StateNotifier<AdminState> {
   final AdminRepository _repository;
+  final DepartmentsRepository _departmentsRepository;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  AdminController(this._repository) : super(AdminState());
-
+  AdminController(this._repository, this._departmentsRepository)
+    : super(AdminState());
   Future<void> loadInitialData() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       // --- 1. OBTENER DATOS DEL USUARIO LOGUEADO ---
-      final firebaseUser = _auth.currentUser;
+     final firebaseUser = _auth.currentUser;
       if (firebaseUser == null) throw Exception('Usuario no autenticado');
       final currentUser = await _repository.getUserProfile(firebaseUser.uid);
 
       final String userRole = currentUser.role.toLowerCase();
+      
+      // --- 👇 VUELVE A AGREGAR ESTA LÍNEA AQUÍ 👇 ---
       final String userEstId = currentUser.establishmentId;
-
-      // --- ESTABLISHMENTS YA NO SE CARGA AQUÍ ---
+      // -----------------------------------------
 
       Future<List<AppUser>> usersFuture;
-      Future<List<Department>> departmentsFuture;
+      // departmentsFuture (borrado - esto está bien)
 
       if (userRole == 'superadmin') {
         usersFuture = _repository.getAllUsers();
-        departmentsFuture = Future.value(<Department>[]);
       } else if (userRole == 'admin') {
+        // ¡Ahora 'userEstId' existe y esto compila!
         usersFuture = _repository.getUsersForEstablishment(userEstId);
-        departmentsFuture = _repository.getDepartmentsByEstablishment(
-          userEstId,
-        );
       } else {
         throw Exception('Acceso no autorizado a esta pantalla');
       }
 
       // --- 3. EJECUTAR CONSULTAS ---
       final results = await Future.wait([
-        // establishmentsFuture (BORRADO)
         usersFuture,
-        departmentsFuture,
+        // departmentsFuture (borrado - esto está bien)
       ]);
 
       // --- 4. PROCESAR RESULTADOS ---
-      // 'results[0]' AHORA ES 'users'
-      final users = results[0] as List<AppUser>;
-      // 'results[1]' AHORA ES 'departments'
-      final departments = results[1] as List<Department>;
-
+      final users = results[0];
       // --- 5. FILTRO DE SEGURIDAD FINAL (en la App) ---
       List<AppUser> finalUserList;
       if (userRole == 'admin') {
@@ -109,74 +103,11 @@ class AdminController extends StateNotifier<AdminState> {
       state = state.copyWith(
         // establishments: (BORRADO)
         users: finalUserList,
-        departments: departments,
+
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
-    }
-  }
-
-  // --- DEPARTMENTS ---
-  // 🚀 MÉTODO 'loadDepartments' ACTUALIZADO (AHORA ES INTELIGENTE)
-  Future<void> loadDepartments(String establishmentId) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      // --- 1. OBTENER PERFIL DEL USUARIO LOGUEADO ---
-      // (Asumo que tienes el método 'getUserProfile' en tu repositorio)
-      final firebaseUser = _auth.currentUser;
-      if (firebaseUser == null) throw Exception('Usuario no autenticado');
-      final currentUser = await _repository.getUserProfile(firebaseUser.uid);
-
-      final String userRole = currentUser.role.toLowerCase();
-      String idParaBuscar;
-
-      // --- 2. DECIDIR QUÉ ID USAR ---
-      if (userRole == 'superadmin') {
-        // Un SuperAdmin SÍ puede usar el ID que le pasa la UI
-        idParaBuscar = establishmentId;
-      } else {
-        // Un Admin DEBE usar su PROPIO ID. Ignoramos el 'establishmentId'
-        // que viene de la UI para cumplir la regla de seguridad.
-        idParaBuscar = currentUser.establishmentId;
-      }
-
-      // --- 3. CARGAR DATOS ---
-      final result = await _repository.getDepartmentsByEstablishment(
-        idParaBuscar, // <-- Usamos el ID seguro
-      );
-      state = state.copyWith(departments: result, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-    }
-  }
-
-  Future<void> createDepartment(Department department) async {
-    try {
-      await _repository.createDepartment(department);
-      await loadDepartments(department.establishmentId);
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
-  }
-
-  Future<void> updateDepartment(Department department) async {
-    try {
-      await _repository.updateDepartment(department);
-      await loadDepartments(department.establishmentId);
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
-  }
-
-  Future<void> deleteDepartments(String id) async {
-    try {
-      await _repository.deleteDepartment(id);
-      await loadDepartments(
-        state.departments.firstWhere((dept) => dept.id == id).establishmentId,
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
     }
   }
 
@@ -320,9 +251,10 @@ class AdminController extends StateNotifier<AdminState> {
   Future<void> loadUsersForEstablishment(String establishmentId) async {
     state = state.copyWith(isLoading: true);
     try {
-      final departments = await _repository.getDepartmentsByEstablishment(
-        establishmentId,
-      );
+      // --- 👇 ¡CAMBIO CLAVE! Usa el nuevo repositorio inyectado ---
+      final departments = await _departmentsRepository
+          .getDepartmentsByEstablishment(establishmentId);
+      // --------------------------------------------------------
       List<AppUser> allUsers = [];
       for (var dept in departments) {
         final users = await _repository.getUsersByDepartment(dept.id);
@@ -393,7 +325,6 @@ class AdminController extends StateNotifier<AdminState> {
     state = state.copyWith(isLoading: true);
     try {
       await Future.wait([
-        loadDepartments(establishmentId),
         _repository.getParkingSpotsByEstablishment(establishmentId).then((
           spots,
         ) {
@@ -411,6 +342,11 @@ class AdminController extends StateNotifier<AdminState> {
 
 final adminControllerProvider =
     StateNotifierProvider<AdminController, AdminState>((ref) {
+      // --- 👇 ACTUALIZADO 👇 ---
       final repo = ref.watch(adminRepositoryProvider);
-      return AdminController(repo);
+      final departmentsRepo = ref.watch(
+        departmentsRepositoryProvider,
+      ); // 1. Míralo
+      return AdminController(repo, departmentsRepo); // 2. Pásalo
+      // -----------------------
     });

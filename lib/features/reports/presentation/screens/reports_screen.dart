@@ -76,7 +76,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Reporte de Ocupación de Cocheras"),
-        backgroundColor: Colors.red.shade700,
+
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

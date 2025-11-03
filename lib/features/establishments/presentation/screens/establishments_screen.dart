@@ -1,12 +1,12 @@
+import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// --- 👇 CAMBIO 1: Importar el paquete ---
 import 'package:data_table_2/data_table_2.dart';
-// ------------------------------------
 import 'package:cocheras_nestle_web/features/admin/presentation/screen/assign_Admin_screen.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
+// Importamos el nuevo controller
 
 class EstablishmentsScreen extends ConsumerStatefulWidget {
   const EstablishmentsScreen({super.key});
@@ -20,16 +20,40 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   @override
   void initState() {
     super.initState();
+    // El 'initState' solo carga los 'users'
+    // El 'establishmentsControllerProvider' se carga solo
     Future.microtask(() {
       ref.read(adminControllerProvider.notifier).loadInitialData();
     });
   }
 
+  // --- 👇 NUEVA FUNCIÓN HELPER SEGURA 👇 ---
+  String _getAdminName(List<AppUser> allUsers, String establishmentId) {
+    // Usamos 'firstWhereOrNull' (requiere import 'package:collection/collection.dart')
+    // o un bucle 'for' para ser 100% seguros. Usemos un try-catch que es más simple.
+    try {
+      final admin = allUsers.firstWhere(
+          (user) => user.role == 'admin' && user.establishmentId == establishmentId);
+      return admin.displayName;
+    } catch (e) {
+      return 'Sin asignar';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(adminControllerProvider);
-    final controller = ref.read(adminControllerProvider.notifier);
-    final List<AppUser> allUsers = state.users;
+    // 1. Miramos los providers
+    final establishmentState = ref.watch(establishmentsControllerProvider);
+    final establishmentsController =
+        ref.read(establishmentsControllerProvider.notifier);
+
+    final adminState = ref.watch(adminControllerProvider);
+    final List<AppUser> allUsers = adminState.users;
+    
+    // --- 👇 LÓGICA DE CARGA MÁS SIMPLE 👇 ---
+    // Mostramos 'loading' si CUALQUIERA de los dos está cargando
+    final bool isLoading =
+        establishmentState.isLoading || adminState.isLoading;
 
     return Scaffold(
       appBar: AppBar(
@@ -37,26 +61,32 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: controller.loadInitialData,
+            onPressed: () {
+              // Refrescamos ambos
+              ref.invalidate(establishmentsControllerProvider);
+              ref.read(adminControllerProvider.notifier).loadInitialData();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddDialog(context, controller),
+            onPressed: () => _showAddDialog(context, establishmentsController),
           ),
         ],
       ),
-      // --- 👇 CAMBIO 2: El 'body' se simplifica ---
-      body: state.isLoading
+      body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              // Mantenemos tu padding
               padding: const EdgeInsets.all(24),
               child: DataTable2(
-                // Propiedad para cuando la lista está vacía
-                empty: const Center(child: Text('No hay establecimientos registrados.')),
-                // Ancho mínimo (buena práctica)
+                empty: Center(
+                  child: Text(
+                    // Mostramos el error si existe
+                    establishmentState.error ?? 
+                    adminState.error ??
+                    'No hay establecimientos registrados.',
+                  ),
+                ),
                 minWidth: 700,
-                // Reemplazamos DataColumn por DataColumn2 y añadimos 'size'
                 columns: const [
                   DataColumn2(label: Text('Nombre'), size: ColumnSize.M),
                   DataColumn2(label: Text('Dirección'), size: ColumnSize.L),
@@ -64,39 +94,31 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                   DataColumn2(label: Text('Administrador'), size: ColumnSize.M),
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.M),
                 ],
-                // ¡Esta parte (rows) no cambia en absoluto!
-                rows: state.establishments.map((e) {
-                  String adminName = 'Sin asignar';
-                  try {
-                    final admin = allUsers.firstWhere(
-                      (user) => user.role == 'admin' && user.establishmentId == e.id
-                    );
-                    adminName = admin.displayName;
-                  } catch (err) {
-                    // No se encontró admin, se mantiene 'Sin asignar'
-                  }
-              
+                rows: establishmentState.establishments.map((e) {
+                  // --- 👇 USAMOS LA NUEVA FUNCIÓN SEGURA 👇 ---
+                  final adminName = _getAdminName(allUsers, e.id);
+
                   return DataRow(
                     cells: [
                       DataCell(Text(e.name)),
                       DataCell(Text(e.address)),
                       DataCell(Text(e.organizationType)),
-                      DataCell(Text(adminName)),
+                      DataCell(Text(adminName)), // <-- Ahora es seguro
                       DataCell(
                         Row(
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar',
-                              onPressed: () =>
-                                  _showEditDialog(context, controller, e),
+                              onPressed: () => _showEditDialog(
+                                  context, establishmentsController, e),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete),
                               tooltip: 'Eliminar',
                               color: Colors.red,
-                              onPressed: () =>
-                                  _confirmDelete(context, controller, e.id),
+                              onPressed: () => _confirmDelete(
+                                  context, establishmentsController, e.id),
                             ),
                             IconButton(
                               icon: const Icon(Icons.person_add),
@@ -123,14 +145,10 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
     );
   }
 
-  // --- (SIN CAMBIOS DESDE AQUÍ) ---
-  // (Pega aquí tus 3 métodos: _showAddDialog, 
-  //  _showEditDialog, y _confirmDelete)
-
+  // --- (LOS 3 DIÁLOGOS ESTÁN BIEN, NO NECESITAN CAMBIOS) ---
   Future<void> _showAddDialog(
-    BuildContext context,
-    AdminController controller,
-  ) async {
+      BuildContext context, EstablishmentsController controller) async {
+    // ... tu código ...
     final nameController = TextEditingController();
     final addressController = TextEditingController();
     String orgType = 'DEPARTAMENTAL';
@@ -180,7 +198,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 organizationType: orgType,
                 createdAt: DateTime.now(),
               );
-              await controller.createEstablishment(est);
+              await controller.create(est);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar'),
@@ -191,10 +209,8 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   }
 
   Future<void> _showEditDialog(
-    BuildContext context,
-    AdminController controller,
-    Establishment e,
-  ) async {
+      BuildContext context, EstablishmentsController controller, Establishment e) async {
+    // ... tu código ...
     final nameController = TextEditingController(text: e.name);
     final addressController = TextEditingController(text: e.address);
     String orgType = e.organizationType;
@@ -242,9 +258,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 address: addressController.text.trim(),
                 organizationType: orgType,
               );
-              await controller.updateEstablishment(
-                updated,
-              ); // mismo método para update
+              await controller.update(updated);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar cambios'),
@@ -255,10 +269,8 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   }
 
   Future<void> _confirmDelete(
-    BuildContext context,
-    AdminController controller,
-    String id,
-  ) async {
+      BuildContext context, EstablishmentsController controller, String id) async {
+    // ... tu código ...
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -281,7 +293,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
     );
 
     if (confirm == true) {
-      await controller.deleteEstablishment(id);
+      await controller.delete(id);
     }
   }
 }

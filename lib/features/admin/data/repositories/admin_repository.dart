@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
-import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
@@ -9,31 +8,6 @@ class AdminRepository {
   final FirebaseFirestore _firestore;
 
   AdminRepository(this._firestore);
-
-  // --- 🔹 ESTABLISHMENTS ---
-  Future<List<Establishment>> getAllEstablishments() async {
-    final snapshot = await _firestore.collection('establishments').get();
-    return snapshot.docs
-        .map((doc) => Establishment.fromMap(doc.data(), doc.id))
-        .toList();
-  }
-
-  Future<void> createEstablishment(Establishment establishment) async {
-    final docRef = _firestore.collection('establishments').doc();
-    await docRef.set(establishment.copyWith(id: docRef.id).toMap());
-  }
-
-  Future<void> updateEstablishment(Establishment establishment) async {
-    if (establishment.id.isEmpty) throw Exception('El id no puede ser vacío');
-    await _firestore
-        .collection('establishments')
-        .doc(establishment.id)
-        .update(establishment.toMap());
-  }
-
-  Future<void> deleteEstablishment(String id) async {
-    await _firestore.collection('establishments').doc(id).delete();
-  }
 
   // --- 🔹 DEPARTMENTS ---
   Future<List<Department>> getDepartmentsByEstablishment(
@@ -106,7 +80,7 @@ class AdminRepository {
     if (!docSnap.exists) {
       throw Exception('No se encontró el perfil de usuario.');
     }
-    return AppUser.fromMap(docSnap.data()!,  docSnap.id);
+    return AppUser.fromMap(docSnap.data()!, docSnap.id);
   }
 
   // --- 🚀 MÉTODO FALTANTE 2 ---
@@ -127,7 +101,7 @@ class AdminRepository {
         .where('role', isEqualTo: 'admin')
         .get();
     return snapshot.docs
-        .map((doc) => AppUser.fromMap(doc.data(),  doc.id))
+        .map((doc) => AppUser.fromMap(doc.data(), doc.id))
         .toList();
   }
 
@@ -156,9 +130,9 @@ class AdminRepository {
   }
 
   Future<void> createUser(AppUser user) async {
-  await _firestore.collection('users').doc(user.id).set(user.toMap());
-  // ------------------
-}
+    await _firestore.collection('users').doc(user.id).set(user.toMap());
+    // ------------------
+  }
 
   Future<void> updateUser(AppUser user) async {
     if (user.id.isEmpty) throw Exception('El id no puede ser vacío');
@@ -242,7 +216,10 @@ class AdminRepository {
 
       return snapshot.docs.map((doc) {
         try {
-          return SpotRelease.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+          return SpotRelease.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          );
         } catch (e) {
           print("❌ ERROR parseando doc ${doc.id}: $e");
           rethrow;

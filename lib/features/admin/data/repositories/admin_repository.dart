@@ -156,9 +156,9 @@ class AdminRepository {
   }
 
   Future<void> createUser(AppUser user) async {
-    final docRef = _firestore.collection('users').doc();
-    await docRef.set(user.copyWith(id: docRef.id).toMap());
-  }
+  await _firestore.collection('users').doc(user.id).set(user.toMap());
+  // ------------------
+}
 
   Future<void> updateUser(AppUser user) async {
     if (user.id.isEmpty) throw Exception('El id no puede ser vacío');

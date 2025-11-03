@@ -18,22 +18,21 @@ class AuthRepository {
     final uid = userCred.user!.uid;
 
     final doc = await _firestore.collection('users').doc(uid).get();
+
+    // --- CORRECCIÓN ---
     if (!doc.exists) {
-      final newUser = AppUser(
-        id: uid,
-        email: email,
-        role: 'user',
-        displayName: '',
-        establishmentId: '',
-        departmentId: '',
-        establishmentName: '',
-        vehiclePlates: [],
+      // Si el usuario se autenticó pero no tiene perfil en Firestore,
+      // significa que es un usuario inválido para esta app. Lo echamos.
+      await _auth.signOut();
+      _cachedUser = null;
+      throw Exception(
+        'Este usuario no está registrado en la base de datos de la aplicación.',
       );
-      await _firestore.collection('users').doc(uid).set(newUser.toMap());
-      _cachedUser = newUser;
     } else {
+      // El usuario sí existe, continuamos normal.
       _cachedUser = AppUser.fromMap(doc.data()!, uid);
     }
+    // ------------------
 
     return _cachedUser;
   }

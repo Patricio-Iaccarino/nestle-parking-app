@@ -125,6 +125,15 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       BuildContext context, AdminController controller) async {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
+    final numberOfSpotsController = TextEditingController();
+
+    // --- LÓGICA DE VALIDACIÓN ---
+    final state = ref.read(adminControllerProvider);
+    final establishment = state.establishments.firstWhere((e) => e.id == widget.establishmentId);
+    final totalCapacity = establishment.totalParkingSpots;
+    final allocatedSpots = state.departments.fold<int>(0, (prev, dept) => prev + dept.numberOfSpots);
+    final availableSpots = totalCapacity - allocatedSpots;
+    // ---------------------------
 
     await showDialog(
       context: context,
@@ -133,9 +142,16 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text('Cocheras disponibles: $availableSpots', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+            TextField(
+              controller: numberOfSpotsController,
+              decoration: const InputDecoration(labelText: 'Cantidad de Cocheras'),
+              keyboardType: TextInputType.number,
             ),
             TextField(
               controller: descriptionController,
@@ -150,10 +166,31 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final newSpots = int.tryParse(numberOfSpotsController.text.trim()) ?? 0;
+
+              if (newSpots > availableSpots) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Error de validación'),
+                    content: Text(
+                        'El número de cocheras ($newSpots) excede las disponibles ($availableSpots).'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                return;
+              }
+
               final newDept = Department(
                 id: '', // Se genera en el repository
                 name: nameController.text.trim(),
                 description: descriptionController.text.trim(),
+                numberOfSpots: newSpots,
                 establishmentId: widget.establishmentId,
                 createdAt: DateTime.now(),
               );
@@ -172,6 +209,19 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     final nameController = TextEditingController(text: dept.name);
     final descriptionController =
         TextEditingController(text: dept.description ?? '');
+    final numberOfSpotsController = TextEditingController(text: dept.numberOfSpots.toString());
+
+    // --- LÓGICA DE VALIDACIÓN ---
+    final state = ref.read(adminControllerProvider);
+    final establishment = state.establishments.firstWhere((e) => e.id == widget.establishmentId);
+    final totalCapacity = establishment.totalParkingSpots;
+    // Suma las cocheras de OTROS departamentos
+    final allocatedToOthers = state.departments
+        .where((d) => d.id != dept.id)
+        .fold<int>(0, (prev, d) => prev + d.numberOfSpots);
+    // Las disponibles son la capacidad total menos las asignadas a otros
+    final availableSpots = totalCapacity - allocatedToOthers;
+    // ---------------------------
 
     await showDialog(
       context: context,
@@ -180,9 +230,16 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text('Cocheras disponibles: $availableSpots', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Nombre'),
+            ),
+            TextField(
+              controller: numberOfSpotsController,
+              decoration: const InputDecoration(labelText: 'Cantidad de Cocheras'),
+              keyboardType: TextInputType.number,
             ),
             TextField(
               controller: descriptionController,
@@ -197,9 +254,30 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final newSpots = int.tryParse(numberOfSpotsController.text.trim()) ?? 0;
+
+              if (newSpots > availableSpots) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Error de validación'),
+                    content: Text(
+                        'El número de cocheras ($newSpots) excede las disponibles ($availableSpots).'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                return;
+              }
+
               final updatedDept = dept.copyWith(
                 name: nameController.text.trim(),
                 description: descriptionController.text.trim(),
+                numberOfSpots: newSpots,
               );
               await controller.updateDepartment(updatedDept);
               if (context.mounted) Navigator.pop(context);

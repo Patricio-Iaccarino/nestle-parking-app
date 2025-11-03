@@ -5,6 +5,7 @@ class Department {
   final String name;
   final String establishmentId;
   final String? description;
+  final int numberOfSpots;
   final DateTime createdAt;
 
   Department({
@@ -12,6 +13,7 @@ class Department {
     required this.name,
     required this.establishmentId,
     this.description,
+    required this.numberOfSpots,
     required this.createdAt,
   });
 
@@ -21,6 +23,7 @@ class Department {
       name: data['name'] ?? '',
       establishmentId: data['establishmentId'] ?? '',
       description: data['description'],
+      numberOfSpots: data['numberOfSpots'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
     );
   }
@@ -30,6 +33,7 @@ class Department {
       'name': name,
       'establishmentId': establishmentId,
       'description': description,
+      'numberOfSpots': numberOfSpots,
       'createdAt': createdAt,
     };
   }
@@ -39,6 +43,7 @@ class Department {
     String? name,
     String? establishmentId,
     String? description,
+    int? numberOfSpots,
     DateTime? createdAt,
   }) {
     return Department(
@@ -46,6 +51,7 @@ class Department {
       name: name ?? this.name,
       establishmentId: establishmentId ?? this.establishmentId,
       description: description ?? this.description,
+      numberOfSpots: numberOfSpots ?? this.numberOfSpots,
       createdAt: createdAt ?? this.createdAt,
     );
   }

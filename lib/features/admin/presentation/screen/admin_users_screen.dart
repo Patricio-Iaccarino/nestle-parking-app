@@ -332,6 +332,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                                   name: 'No asignado',
                                   address: '',
                                   organizationType: '',
+                                  totalParkingSpots: 0, // <-- FIX
                                   createdAt: DateTime.now(),
                                 ),
                               )
@@ -492,6 +493,7 @@ class _AdminDataSource extends DataTableSource {
             name: 'No asignado',
             address: '',
             organizationType: '',
+            totalParkingSpots: 0, // <-- FIX
             createdAt: DateTime.now(),
           ),
         )

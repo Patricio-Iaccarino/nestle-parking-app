@@ -5,6 +5,7 @@ class Establishment {
   final String name;
   final String address;
   final String organizationType;
+  final int totalParkingSpots;
   final DateTime createdAt;
 
   Establishment({
@@ -12,6 +13,7 @@ class Establishment {
     required this.name,
     required this.address,
     required this.organizationType,
+    required this.totalParkingSpots,
     required this.createdAt,
   });
 
@@ -21,6 +23,7 @@ class Establishment {
       name: data['name'] ?? '',
       address: data['address'] ?? '',
       organizationType: data['organizationType'] ?? 'UNIFICADO',
+      totalParkingSpots: data['totalParkingSpots'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
     );
   }
@@ -30,6 +33,7 @@ class Establishment {
       'name': name,
       'address': address,
       'organizationType': organizationType,
+      'totalParkingSpots': totalParkingSpots,
       'createdAt': createdAt,
     };
   }
@@ -39,6 +43,7 @@ class Establishment {
     String? name,
     String? address,
     String? organizationType,
+    int? totalParkingSpots,
     DateTime? createdAt,
   }) {
     return Establishment(
@@ -46,6 +51,7 @@ class Establishment {
       name: name ?? this.name,
       address: address ?? this.address,
       organizationType: organizationType ?? this.organizationType,
+      totalParkingSpots: totalParkingSpots ?? this.totalParkingSpots,
       createdAt: createdAt ?? this.createdAt,
     );
   }

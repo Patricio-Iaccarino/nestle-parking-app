@@ -133,6 +133,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   ) async {
     final nameController = TextEditingController();
     final addressController = TextEditingController();
+    final totalParkingSpotsController = TextEditingController();
     String orgType = 'DEPARTAMENTAL';
 
     await showDialog(
@@ -149,6 +150,11 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
             TextField(
               controller: addressController,
               decoration: const InputDecoration(labelText: 'Dirección'),
+            ),
+            TextField(
+              controller: totalParkingSpotsController,
+              decoration: const InputDecoration(labelText: 'Cantidad de Cocheras'),
+              keyboardType: TextInputType.number,
             ),
             DropdownButtonFormField<String>(
               initialValue: orgType,
@@ -177,6 +183,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 id: '',
                 name: nameController.text.trim(),
                 address: addressController.text.trim(),
+                totalParkingSpots: int.tryParse(totalParkingSpotsController.text.trim()) ?? 0,
                 organizationType: orgType,
                 createdAt: DateTime.now(),
               );
@@ -197,6 +204,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   ) async {
     final nameController = TextEditingController(text: e.name);
     final addressController = TextEditingController(text: e.address);
+    final totalParkingSpotsController = TextEditingController(text: e.totalParkingSpots.toString());
     String orgType = e.organizationType;
 
     await showDialog(
@@ -213,6 +221,11 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
             TextField(
               controller: addressController,
               decoration: const InputDecoration(labelText: 'Dirección'),
+            ),
+            TextField(
+              controller: totalParkingSpotsController,
+              decoration: const InputDecoration(labelText: 'Cantidad de Cocheras'),
+              keyboardType: TextInputType.number,
             ),
             DropdownButtonFormField<String>(
               initialValue: orgType,
@@ -240,6 +253,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
               final updated = e.copyWith(
                 name: nameController.text.trim(),
                 address: addressController.text.trim(),
+                totalParkingSpots: int.tryParse(totalParkingSpotsController.text.trim()) ?? e.totalParkingSpots,
                 organizationType: orgType,
               );
               await controller.updateEstablishment(

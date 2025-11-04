@@ -1,14 +1,15 @@
+// reservations_screen.dart
 import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:data_table_2/data_table_2.dart';
-import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:intl/intl.dart';
-
-
+import 'package:cocheras_nestle_web/features/reservations/application/reservations_controller.dart';
+// (Importamos el users_controller que ya existe)
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 
 class ReservationsScreen extends ConsumerStatefulWidget {
   const ReservationsScreen({super.key});
@@ -26,28 +27,36 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     super.initState();
     // --- 👇 CAMBIO 2: El initState ahora llama a 3 providers ---
     Future.microtask(() {
-      final controller = ref.read(adminControllerProvider.notifier);
-      final establishmentId =
-          ref.read(authControllerProvider).value?.establishmentId;
+      final establishmentId = ref
+          .read(authControllerProvider)
+          .value
+          ?.establishmentId;
 
       if (establishmentId != null) {
-        // 1. Carga las reservaciones y usuarios (desde AdminController)
-        controller.loadReservations(establishmentId, date: _selectedDate);
-        controller.loadUsersForEstablishment(establishmentId);
-        // 2. Carga los departamentos (desde el NUEVO controller)
+        // 1. Carga las reservaciones (NUEVO CONTROLLER)
+        ref
+            .read(reservationsControllerProvider.notifier)
+            .load(establishmentId, date: _selectedDate);
+        // 2. Carga los usuarios (USAREMOS EL USERS_CONTROLLER)
+        ref
+            .read(usersControllerProvider.notifier)
+            .loadUsersByEstablishment(establishmentId);
+        // 3. Carga los departamentos
         ref.read(departmentsControllerProvider.notifier).load(establishmentId);
       }
     });
   }
 
   void _loadData() {
-    // Esta función solo recarga las reservaciones (está bien)
-    final establishmentId =
-        ref.read(authControllerProvider).value?.establishmentId;
+    final establishmentId = ref
+        .read(authControllerProvider)
+        .value
+        ?.establishmentId;
     if (establishmentId != null) {
+      // --- 👇 CAMBIO 3: Llama al NUEVO controller ---
       ref
-          .read(adminControllerProvider.notifier)
-          .loadReservations(establishmentId, date: _selectedDate);
+          .read(reservationsControllerProvider.notifier)
+          .load(establishmentId, date: _selectedDate);
     }
   }
 
@@ -62,25 +71,30 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      _loadData();
+      _loadData(); // Esto ahora llama al nuevo controller
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 3: Miramos AMBOS providers ---
-    final adminState = ref.watch(adminControllerProvider);
+    // --- 👇 CAMBIO 4: Miramos los 3 providers ---
+    final reservationsState = ref.watch(reservationsControllerProvider);
+    final usersState = ref.watch(usersControllerProvider);
     final departmentState = ref.watch(departmentsControllerProvider);
     // ------------------------------------------
-    
+
     // Combinamos los estados
-    final bool isLoading = adminState.isLoading || departmentState.isLoading;
-    final String? error = adminState.error ?? departmentState.error;
-    
+    final bool isLoading =
+        reservationsState.isLoading ||
+        usersState.isLoading ||
+        departmentState.isLoading;
+    final String? error =
+        reservationsState.error ?? usersState.error ?? departmentState.error;
+
     // Leemos los datos de sus respectivos estados
-    final users = adminState.users;
-    final departments = departmentState.departments; // <-- Leído del nuevo estado
-    final filteredReleases = adminState.spotReleases.where((release) {
+    final users = usersState.users;
+    final departments = departmentState.departments;
+    final filteredReleases = reservationsState.spotReleases.where((release) {
       return _selectedDepartmentId == null ||
           release.departmentId == _selectedDepartmentId;
     }).toList();
@@ -100,7 +114,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                   onPressed: () => _selectDate(context),
                 ),
                 const SizedBox(width: 20),
-                // Filtro por Departamento (usa la lista 'departments' del nuevo estado)
+                // Filtro por Departamento (usa 'departments' del departmentState)
                 DropdownButton<String>(
                   value: _selectedDepartmentId,
                   hint: const Text('Filtrar por Departamento'),
@@ -114,7 +128,6 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                       value: null,
                       child: Text('Todos los Departamentos'),
                     ),
-                    // ¡Esto ahora funciona!
                     ...departments.map<DropdownMenuItem<String>>((
                       Department dept,
                     ) {
@@ -128,12 +141,21 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  // --- 👇 CAMBIO 4: Refrescamos AMBOS providers ---
+                  // --- 👇 CAMBIO 5: Refrescamos los 3 providers ---
                   onPressed: () {
+                    final establishmentId = ref
+                        .read(authControllerProvider)
+                        .value
+                        ?.establishmentId;
+                    if (establishmentId == null) return;
                     _loadData(); // Recarga reservaciones
-                    ref.invalidate(departmentsControllerProvider); // Recarga deptos
-                    // (Los usuarios no hace falta recargarlos)
-                  }
+                    ref
+                        .read(departmentsControllerProvider.notifier)
+                        .load(establishmentId);
+                    ref
+                        .read(usersControllerProvider.notifier)
+                        .loadUsersByEstablishment(establishmentId);
+                  },
                 ),
               ],
             ),
@@ -148,13 +170,18 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                       DataColumn2(label: Text('Depto.'), size: ColumnSize.M),
                       DataColumn2(label: Text('Estado'), size: ColumnSize.S),
                       DataColumn2(
-                          label: Text('Titular (Liberó)'), size: ColumnSize.L),
+                        label: Text('Titular (Liberó)'),
+                        size: ColumnSize.L,
+                      ),
                       DataColumn2(
-                          label: Text('Suplente (Reservó)'), size: ColumnSize.L),
+                        label: Text('Suplente (Reservó)'),
+                        size: ColumnSize.L,
+                      ),
                     ],
                     empty: Center(
                       child: Text(
-                        error ?? 'No hay reservas para la fecha y filtro seleccionados.',
+                        error ??
+                            'No hay reservas para la fecha y filtro seleccionados.',
                       ),
                     ),
                     rowsPerPage: 20,
@@ -164,8 +191,8 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                     wrapInCard: false,
                     source: _ReservationsDataSource(
                       releases: filteredReleases,
-                      allUsers: users, // <-- Viene de adminState
-                      allDepartments: departments, // <-- Viene de departmentState
+                      allUsers: users,
+                      allDepartments: departments,
                     ),
                   ),
           ),
@@ -175,7 +202,6 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   }
 }
 
-// ... (Clase _ReservationsDataSource sin cambios) ...
 class _ReservationsDataSource extends DataTableSource {
   final List<dynamic> releases;
   final List<AppUser> allUsers;

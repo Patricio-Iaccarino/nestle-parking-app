@@ -1,10 +1,14 @@
 import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
+import 'package:cocheras_nestle_web/features/reservations/application/reservations_controller.dart';
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
+
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -17,18 +21,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: El initState ahora llama a AMBOS controllers ---
+    // --- 👇 CAMBIO 2: El initState ahora carga TODOS los providers ---
     Future.microtask(() {
       final establishmentId = ref
           .read(authControllerProvider)
           .value
           ?.establishmentId;
+
       if (establishmentId != null) {
-        // 1. Llama al provider de admin (carga users, spots, releases)
-        ref
-            .read(adminControllerProvider.notifier)
-            .loadDashboardData(establishmentId);
-        // 2. Llama al nuevo provider de departamentos
+        // 1. Carga datos del Admin (SOLO parkingSpots)
+        ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId);
+        // 2. Carga las reservaciones (NUEVO)
+        ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
+        // 3. Carga los usuarios (NUEVO)
+        ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
+        // 4. Carga los departamentos (NUEVO)
         ref.read(departmentsControllerProvider.notifier).load(establishmentId);
       }
     });
@@ -40,49 +47,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .value
         ?.establishmentId;
     if (establishmentId != null) {
-      // --- 👇 CAMBIO 3: El refresh también llama a AMBOS ---
-      ref
-          .read(adminControllerProvider.notifier)
-          .loadDashboardData(establishmentId);
+      // --- 👇 CAMBIO 3: Refresca TODOS los providers ---
+      ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId);
+      ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
+      ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 4: Miramos AMBOS providers ---
+    // --- 👇 CAMBIO 4: Miramos TODOS los providers ---
     final adminState = ref.watch(adminControllerProvider);
+    final reservationsState = ref.watch(reservationsControllerProvider);
+    final usersState = ref.watch(usersControllerProvider);
     final departmentState = ref.watch(departmentsControllerProvider);
     final theme = Theme.of(context);
 
-    // El estado de carga depende de AMBOS
-    final bool isLoading = adminState.isLoading || departmentState.isLoading;
+    // Combinamos todos los estados de carga
+    final bool isLoading = adminState.isLoading || 
+                           reservationsState.isLoading || 
+                           usersState.isLoading || 
+                           departmentState.isLoading;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Mostramos error si CUALQUIERA de los dos falla
-    if (adminState.error != null || departmentState.error != null) {
-      return Center(
-        child: Text(
-          'Error al cargar: ${adminState.error ?? departmentState.error}',
-        ),
-      );
-    }
-
-    // --- Lógica de KPIs (usa solo adminState, está bien) ---
-    final totalSpots = adminState.parkingSpots.length;
-    final releasesToday = adminState.spotReleases;
+    // --- 👇 CAMBIO 5: Leemos los datos de sus providers correctos ---
+    final totalSpots = adminState.parkingSpots.length; // Sigue en AdminState
+    final releasesToday = reservationsState.spotReleases; // <-- NUEVO
+    final departments = departmentState.departments; // <-- NUEVO
+    final users = usersState.users; // <-- NUEVO
+    
+    // Lógica de KPIs (ahora usa 'releasesToday')
     final availableToday = releasesToday
         .where((r) => r.status == 'AVAILABLE')
         .length;
     final bookedToday = releasesToday.where((r) => r.status == 'BOOKED').length;
     final occupiedByTitulars = totalSpots - releasesToday.length;
     final totalOccupancy =
-        (totalSpots == 0 ||
-            (bookedToday + occupiedByTitulars)
-                .isNaN) // Evitar división por cero
+        (totalSpots == 0 || (bookedToday + occupiedByTitulars).isNaN)
         ? 0.0
         : ((bookedToday + occupiedByTitulars) / totalSpots * 100);
 
@@ -103,10 +108,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           children: [
             // --- 1. SECCIÓN DE KPIs (Sin cambios) ---
             Wrap(
-              spacing: 20, // Espacio horizontal
-              runSpacing: 20, // Espacio vertical
+              spacing: 20,
+              runSpacing: 20,
               children: [
-                _buildKpiCard(
+                 _buildKpiCard(
                   context,
                   icon: Icons.directions_car,
                   title: 'Ocupación Total (Hoy)',
@@ -143,21 +148,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Columna izquierda: Resumen por Depto
                 Expanded(
                   flex: 2,
-                  // --- 👇 CAMBIO 5: Pasamos los datos correctos ---
+                  // --- 👇 CAMBIO 6: Pasamos los datos correctos ---
                   child: _buildDepartmentSummary(
-                    context,
-                    departmentState.departments, // La lista de deptos
-                    adminState, // El resto de los datos (spots, releases)
+                    context, 
+                    departments, // <-- NUEVO
+                    adminState,  // (para parkingSpots)
+                    releasesToday, // <-- NUEVO
                   ),
                 ),
                 const SizedBox(width: 24),
-                // Columna derecha: Actividad Reciente (Sin cambios)
                 Expanded(
-                  flex: 3,
-                  child: _buildRecentActivity(context, adminState),
+                  flex: 3, 
+                  // --- 👇 CAMBIO 7: Pasamos los datos correctos ---
+                  child: _buildRecentActivity(
+                    context, 
+                    releasesToday, // <-- NUEVO
+                    users,         // <-- NUEVO
+                  )
                 ),
               ],
             ),
@@ -212,11 +221,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // --- 👇 CAMBIO 6: Actualizamos la firma del widget ---
   Widget _buildDepartmentSummary(
-    BuildContext context,
-    List<Department> departments, // Recibe la lista de deptos
-    AdminState adminState, // Recibe el resto del estado
+    BuildContext context, 
+    List<Department> departments,
+    AdminState adminState, // (para .parkingSpots)
+    List<SpotRelease> releasesToday,
   ) {
     return Card(
       elevation: 2,
@@ -237,13 +246,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 DataColumn(label: Text('Ocupadas')),
                 DataColumn(label: Text('Disponibles')),
               ],
-              // Usamos la lista de 'departments' del parámetro
-              rows: departments.map((dept) {
-                // La lógica de cálculo usa 'adminState'
+              rows: departments.map((dept) { // <-- Usa la lista nueva
+                // Lógica para calcular métricas por depto
                 final spotsInDept = adminState.parkingSpots.where(
                   (s) => s.departmentId == dept.id,
                 );
-                final releasesInDept = adminState.spotReleases.where(
+                final releasesInDept = releasesToday.where( // <-- Usa la lista nueva
                   (r) => r.departmentId == dept.id,
                 );
                 final bookedInDept = releasesInDept
@@ -271,11 +279,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // Este widget solo depende de 'adminState', así que está bien
-  Widget _buildRecentActivity(BuildContext context, AdminState state) {
+  // --- 👇 CAMBIO 7 (continuación): Actualizamos la firma ---
+  Widget _buildRecentActivity(
+    BuildContext context, 
+    List<SpotRelease> spotReleases, // <-- NUEVO
+    List<AppUser> users,            // <-- NUEVO
+  ) {
     String getUserName(String? userId) {
       if (userId == null) return '';
-      return state.users
+      return users // <-- Usa la lista nueva
           .firstWhere((u) => u.id == userId, orElse: () => AppUser.empty())
           .displayName;
     }
@@ -293,17 +305,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            if (state.spotReleases.isEmpty)
+            if (spotReleases.isEmpty) // <-- Usa la lista nueva
               const Center(
                 child: Text('No hay actividad registrada para hoy.'),
               ),
             ListView.builder(
               shrinkWrap: true,
-              itemCount: state.spotReleases.length > 5
+              itemCount: spotReleases.length > 5
                   ? 5
-                  : state.spotReleases.length, // Limitar a 5
+                  : spotReleases.length, // Limitar a 5
               itemBuilder: (context, index) {
-                final release = state.spotReleases[index];
+                final release = spotReleases[index];
                 final isBooked = release.status == 'BOOKED';
                 return ListTile(
                   leading: Icon(

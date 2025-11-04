@@ -1,13 +1,14 @@
+import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// --- 👇 CAMBIO 1: Importar el paquete ---
 import 'package:data_table_2/data_table_2.dart';
-// ------------------------------------
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
-import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart'; 
-import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart'; 
+import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
+import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:intl/intl.dart';
+
+
 
 class ReservationsScreen extends ConsumerStatefulWidget {
   const ReservationsScreen({super.key});
@@ -23,28 +24,26 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   @override
   void initState() {
     super.initState();
+    // --- 👇 CAMBIO 2: El initState ahora llama a 3 providers ---
     Future.microtask(() {
       final controller = ref.read(adminControllerProvider.notifier);
-      final establishmentId = ref
-          .read(authControllerProvider)
-          .value
-          ?.establishmentId;
+      final establishmentId =
+          ref.read(authControllerProvider).value?.establishmentId;
 
       if (establishmentId != null) {
-        // Cargar datos necesarios para el panel
+        // 1. Carga las reservaciones y usuarios (desde AdminController)
         controller.loadReservations(establishmentId, date: _selectedDate);
-        // Cargar usuarios y departamentos para poder "mapear" los IDs a nombres
         controller.loadUsersForEstablishment(establishmentId);
-        controller.loadDepartments(establishmentId);
+        // 2. Carga los departamentos (desde el NUEVO controller)
+        ref.read(departmentsControllerProvider.notifier).load(establishmentId);
       }
     });
   }
 
   void _loadData() {
-    final establishmentId = ref
-        .read(authControllerProvider)
-        .value
-        ?.establishmentId;
+    // Esta función solo recarga las reservaciones (está bien)
+    final establishmentId =
+        ref.read(authControllerProvider).value?.establishmentId;
     if (establishmentId != null) {
       ref
           .read(adminControllerProvider.notifier)
@@ -67,17 +66,21 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     }
   }
 
-  // --- (Las funciones Helper _getUserName y _getDepartmentName
-  //      se moverán a la clase _ReservationsDataSource) ---
-
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(adminControllerProvider);
-    final users = state.users;
-    final departments = state.departments;
-
-    // Filtramos las reservas localmente si se seleccionó un departamento
-    final filteredReleases = state.spotReleases.where((release) {
+    // --- 👇 CAMBIO 3: Miramos AMBOS providers ---
+    final adminState = ref.watch(adminControllerProvider);
+    final departmentState = ref.watch(departmentsControllerProvider);
+    // ------------------------------------------
+    
+    // Combinamos los estados
+    final bool isLoading = adminState.isLoading || departmentState.isLoading;
+    final String? error = adminState.error ?? departmentState.error;
+    
+    // Leemos los datos de sus respectivos estados
+    final users = adminState.users;
+    final departments = departmentState.departments; // <-- Leído del nuevo estado
+    final filteredReleases = adminState.spotReleases.where((release) {
       return _selectedDepartmentId == null ||
           release.departmentId == _selectedDepartmentId;
     }).toList();
@@ -86,7 +89,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
       appBar: AppBar(title: const Text('Supervisión de Reservas')),
       body: Column(
         children: [
-          // --- BARRA DE FILTROS (SIN CAMBIOS) ---
+          // --- BARRA DE FILTROS ---
           Container(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -97,7 +100,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                   onPressed: () => _selectDate(context),
                 ),
                 const SizedBox(width: 20),
-                // Filtro por Departamento
+                // Filtro por Departamento (usa la lista 'departments' del nuevo estado)
                 DropdownButton<String>(
                   value: _selectedDepartmentId,
                   hint: const Text('Filtrar por Departamento'),
@@ -111,6 +114,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                       value: null,
                       child: Text('Todos los Departamentos'),
                     ),
+                    // ¡Esto ahora funciona!
                     ...departments.map<DropdownMenuItem<String>>((
                       Department dept,
                     ) {
@@ -124,40 +128,44 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: _loadData,
+                  // --- 👇 CAMBIO 4: Refrescamos AMBOS providers ---
+                  onPressed: () {
+                    _loadData(); // Recarga reservaciones
+                    ref.invalidate(departmentsControllerProvider); // Recarga deptos
+                    // (Los usuarios no hace falta recargarlos)
+                  }
                 ),
               ],
             ),
           ),
-          // --- TABLA DE DATOS (CON CAMBIOS) ---
+          // --- TABLA DE DATOS ---
           Expanded(
-            child: state.isLoading
+            child: isLoading
                 ? const Center(child: CircularProgressIndicator())
-                // --- 👇 CAMBIO 2: Reemplazamos SingleChildScrollView/DataTable ---
                 : PaginatedDataTable2(
                     columns: const [
                       DataColumn2(label: Text('Cochera'), size: ColumnSize.S),
                       DataColumn2(label: Text('Depto.'), size: ColumnSize.M),
                       DataColumn2(label: Text('Estado'), size: ColumnSize.S),
-                      DataColumn2(label: Text('Titular (Liberó)'), size: ColumnSize.L),
-                      DataColumn2(label: Text('Suplente (Reservó)'), size: ColumnSize.L),
+                      DataColumn2(
+                          label: Text('Titular (Liberó)'), size: ColumnSize.L),
+                      DataColumn2(
+                          label: Text('Suplente (Reservó)'), size: ColumnSize.L),
                     ],
-                    // Mensaje si la lista filtrada está vacía
-                    empty: const Center(
-                      child: Text('No hay reservas para la fecha y filtro seleccionados.'),
+                    empty: Center(
+                      child: Text(
+                        error ?? 'No hay reservas para la fecha y filtro seleccionados.',
+                      ),
                     ),
-                    // Configuración de paginación
-                    rowsPerPage: 20, // O el número que prefieras
+                    rowsPerPage: 20,
                     availableRowsPerPage: const [10, 20, 50],
-                    // Ancho mínimo y botones
                     minWidth: 800,
                     showFirstLastButtons: true,
                     wrapInCard: false,
-                    // La clase 'source' que maneja la lógica de datos
                     source: _ReservationsDataSource(
-                      releases: filteredReleases, // Le pasamos la lista filtrada
-                      allUsers: users,
-                      allDepartments: departments,
+                      releases: filteredReleases,
+                      allUsers: users, // <-- Viene de adminState
+                      allDepartments: departments, // <-- Viene de departmentState
                     ),
                   ),
           ),
@@ -167,12 +175,9 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   }
 }
 
-// =================================================================
-// ## CLASE AUXILIAR REQUERIDA: DataTableSource
-// =================================================================
-
+// ... (Clase _ReservationsDataSource sin cambios) ...
 class _ReservationsDataSource extends DataTableSource {
-  final List<dynamic> releases; // Tu modelo SpotRelease
+  final List<dynamic> releases;
   final List<AppUser> allUsers;
   final List<Department> allDepartments;
 
@@ -182,7 +187,6 @@ class _ReservationsDataSource extends DataTableSource {
     required this.allDepartments,
   });
 
-  // --- Funciones Helper (movidas aquí) ---
   String _getUserName(String? userId) {
     if (userId == null || userId.isEmpty) return 'N/A';
     try {
@@ -199,9 +203,7 @@ class _ReservationsDataSource extends DataTableSource {
       return 'Depto. no encontrado';
     }
   }
-  // -----------------------------------------
 
-  // 1. Construye UNA fila
   @override
   DataRow? getRow(int index) {
     if (index >= releases.length) {
@@ -212,11 +214,7 @@ class _ReservationsDataSource extends DataTableSource {
     return DataRow(
       cells: [
         DataCell(Text(release.spotNumber)),
-        DataCell(
-          Text(
-            _getDepartmentName(release.departmentId),
-          ),
-        ),
+        DataCell(Text(_getDepartmentName(release.departmentId))),
         DataCell(
           Chip(
             label: Text(release.status),
@@ -225,27 +223,16 @@ class _ReservationsDataSource extends DataTableSource {
                 : Colors.green.shade100,
           ),
         ),
-        DataCell(
-          Text(
-            _getUserName(release.releasedByUserId),
-          ),
-        ),
-        DataCell(
-          Text(_getUserName(release.bookedByUserId)),
-        ),
+        DataCell(Text(_getUserName(release.releasedByUserId))),
+        DataCell(Text(_getUserName(release.bookedByUserId))),
       ],
     );
   }
 
-  // 2. Le dice a la tabla cuántas filas hay en total (después de filtrar)
   @override
   int get rowCount => releases.length;
-
-  // 3. Le dice si la data cambió (siempre true para simplificar)
   @override
   bool get isRowCountApproximate => false;
-
-  // 4. Le dice cuál es la fila seleccionada (ninguna)
   @override
   int get selectedRowCount => 0;
 }

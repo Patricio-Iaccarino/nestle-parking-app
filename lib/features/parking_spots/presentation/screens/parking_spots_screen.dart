@@ -1,6 +1,7 @@
-// --- 👇 CAMBIO 1: Importar el paquete ---
+// --- 👇 CAMBIO 1: Importar los nuevos controllers ---
+import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
 import 'package:data_table_2/data_table_2.dart';
-// ------------------------------------
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,27 +29,48 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
   @override
   void initState() {
     super.initState();
+    // --- 👇 CAMBIO 2: El initState ahora llama a 3 providers ---
     Future.microtask(() {
-      final controller = ref.read(adminControllerProvider.notifier);
-      controller.loadParkingSpots(widget.departmentId);
-      controller.loadUsers(widget.departmentId);
+      // 1. Carga las cocheras de este depto
+      ref
+          .read(parkingSpotsControllerProvider.notifier)
+          .load(widget.departmentId);
+      // 2. Carga los usuarios de este depto
+      ref.read(adminControllerProvider.notifier).loadUsers(widget.departmentId);
+      // 3. Carga los deptos (para encontrar el nombre del depto actual)
+      ref
+          .read(departmentsControllerProvider.notifier)
+          .load(widget.establishmentId);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(adminControllerProvider);
-    final controller = ref.read(adminControllerProvider.notifier);
-    final parkingSpots = state.parkingSpots;
-    final users = state.users;
+    // --- 👇 CAMBIO 3: Miramos TRES providers ---
+    final spotsState = ref.watch(parkingSpotsControllerProvider);
+    final spotsController = ref.read(parkingSpotsControllerProvider.notifier);
+
+    final adminState = ref.watch(adminControllerProvider);
+
+
+    final deptsState = ref.watch(departmentsControllerProvider);
+    // ------------------------------------------
+
+    // Combinamos los estados de carga y error
+    final bool isLoading =
+        spotsState.isLoading || adminState.isLoading || deptsState.isLoading;
+    final String? error =
+        spotsState.error ?? adminState.error ?? deptsState.error;
+
+    // Lógica para encontrar el nombre (ahora usa deptsState)
     String departmentName = 'Cocheras';
     try {
-      final dept = state.departments.firstWhere(
+      final dept = deptsState.departments.firstWhere(
         (d) => d.id == widget.departmentId,
       );
       departmentName = 'Cocheras de ${dept.name}';
     } catch (e) {
-      departmentName = widget.departmentName;
+      departmentName = widget.departmentName; // Fallback
     }
 
     return Scaffold(
@@ -64,26 +86,36 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => controller.loadParkingSpots(widget.departmentId),
+            // --- 👇 CAMBIO 4: Refrescamos los 3 providers ---
+            onPressed: () {
+              ref
+                  .read(parkingSpotsControllerProvider.notifier)
+                  .load(widget.departmentId);
+              ref
+                  .read(adminControllerProvider.notifier)
+                  .loadUsers(widget.departmentId);
+              ref.invalidate(
+                departmentsControllerProvider,
+              ); // invalidate es más simple aquí
+            },
           ),
           IconButton(
             icon: const Icon(Icons.add),
+            // --- 👇 CAMBIO 5: Pasamos el NUEVO controller ---
             onPressed: () => _showQuickAddSpotDialog(
               context,
-              controller,
+              spotsController, // <-- NUEVO
               widget.departmentId,
               widget.establishmentId,
             ),
           ),
         ],
       ),
-      // --- 👇 CAMBIO 2: El 'body' se reemplaza ---
-      body: state.isLoading
+      body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: PaginatedDataTable2(
-                // Columnas con DataColumn2 y 'size'
                 columns: const [
                   DataColumn2(label: Text('Número'), size: ColumnSize.S),
                   DataColumn2(label: Text('Piso'), size: ColumnSize.S),
@@ -91,91 +123,80 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                   DataColumn2(label: Text('Asignado a'), size: ColumnSize.L),
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.M),
                 ],
-                // Mensaje si la lista está vacía
-                empty: const Center(child: Text('No hay cocheras registradas.')),
-                
-                // Configuración de paginación
-                rowsPerPage: 25, // Cuántas mostrar por página
-                availableRowsPerPage: const [10, 25, 50, 100], // Opciones para el usuario
-                
-                // Ancho mínimo y botones
+                empty: Center(
+                  child: Text(error ?? 'No hay cocheras registradas.'),
+                ),
+                rowsPerPage: 25,
+                availableRowsPerPage: const [10, 25, 50, 100],
                 minWidth: 700,
                 showFirstLastButtons: true,
-                wrapInCard: false, // Sin Card exterior
+                wrapInCard: false,
 
-                // La clase 'source' que maneja la lógica de datos
+                // --- 👇 CAMBIO 6: Pasamos los nuevos datos al Source ---
                 source: _ParkingSpotsDataSource(
-                  parkingSpots: parkingSpots,
-                  users: users,
-                  controller: controller,
+                  parkingSpots:
+                      spotsState.parkingSpots, // <-- Lista del nuevo estado
+                  users: adminState.users, // <-- Lista del viejo estado (OK)
+                  controller: spotsController, // <-- El NUEVO controller
                   context: context,
-                  // Pasamos las funciones de los diálogos
-                  showAssignDialog: (spot, users) =>
-                      _showAssignUserDialog(context, controller, spot, users),
+                  showAssignDialog: (spot, users) => _showAssignUserDialog(
+                    context,
+                    spotsController,
+                    spot,
+                    users,
+                  ),
                   showDeleteDialog: (spotId) =>
-                      _confirmDelete(context, controller, spotId),
+                      _confirmDelete(context, spotsController, spotId),
                 ),
               ),
             ),
     );
   }
 
-  // --- (SIN CAMBIOS DESDE AQUÍ) ---
-  // Todos tus métodos de diálogo (_showAssignUserDialog, _confirmDelete, 
-  // y _showQuickAddSpotDialog) van aquí, sin cambios.
+  // --- 👇 CAMBIO 7: Actualizamos la firma de los diálogos ---
 
   Future<void> _showAssignUserDialog(
     BuildContext context,
-    AdminController controller, // Cambiado de 'dynamic' a 'AdminController'
+    ParkingSpotsController controller, // <-- TIPO CAMBIADO
     ParkingSpot spot,
-    List<AppUser> allUsersInDepartment, // Recibe la lista completa del depto
+    List<AppUser> allUsersInDepartment,
   ) async {
-    String? selectedUserId = spot.assignedUserId; // El ID del usuario actualmente asignado
-
-    // Usuarios que PUEDEN ser asignados (solo Titulares del depto)
+    // ... (El interior de este diálogo no necesita cambios)
+    // ... (Solo llama a controller.updateParkingSpot)
+    String? selectedUserId = spot.assignedUserId;
     final assignableUsers = allUsersInDepartment
         .where((u) => u.role == 'TITULAR')
         .toList();
-
-    // Construye la lista de opciones (items) para el Dropdown
     List<DropdownMenuItem<String?>> dropdownItems = [];
-
-    // Opción "Sin asignar"
-    dropdownItems.add(const DropdownMenuItem<String?>(
-      value: null, // Usamos null para "sin asignar"
-      child: Text('Sin asignar'),
-    ));
-
-    // Añade los usuarios titulares asignables
+    dropdownItems.add(
+      const DropdownMenuItem<String?>(value: null, child: Text('Sin asignar')),
+    );
     dropdownItems.addAll(
       assignableUsers.map(
-        (u) => DropdownMenuItem<String?>(
-          value: u.id,
-          child: Text(u.displayName),
-        ),
+        (u) =>
+            DropdownMenuItem<String?>(value: u.id, child: Text(u.displayName)),
       ),
     );
-
-    // Asegúrate de que el usuario *actualmente asignado* esté en la lista,
-    // incluso si ya no es 'TITULAR' (para evitar el error).
     if (selectedUserId != null && selectedUserId.isNotEmpty) {
-      bool alreadyIncluded = dropdownItems.any((item) => item.value == selectedUserId);
+      bool alreadyIncluded = dropdownItems.any(
+        (item) => item.value == selectedUserId,
+      );
       if (!alreadyIncluded) {
         try {
-          // Búscalo en la lista completa del departamento
-          final currentlyAssignedUser = allUsersInDepartment.firstWhere((u) => u.id == selectedUserId);
-          dropdownItems.add(DropdownMenuItem<String?>(
-            value: currentlyAssignedUser.id,
-            // Añadimos una indicación visual
-            child: Text('${currentlyAssignedUser.displayName} (Asignado)'),
-          ));
+          final currentlyAssignedUser = allUsersInDepartment.firstWhere(
+            (u) => u.id == selectedUserId,
+          );
+          dropdownItems.add(
+            DropdownMenuItem<String?>(
+              value: currentlyAssignedUser.id,
+              child: Text('${currentlyAssignedUser.displayName} (Asignado)'),
+            ),
+          );
         } catch (e) {
-          // El usuario asignado ya no existe en la lista del departamento.
+          // Usuario no encontrado
         }
       }
     }
-
-    // Variable temporal para manejar el cambio dentro del diálogo
     String? tempSelectedUserId = selectedUserId;
 
     await showDialog(
@@ -183,22 +204,21 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Asignar cochera a Titular'),
         content: DropdownButtonFormField<String?>(
-          initialValue: tempSelectedUserId, // Usa la variable temporal
+          initialValue: tempSelectedUserId,
           items: dropdownItems,
           onChanged: (val) {
-            // Actualiza la variable temporal cuando el usuario elige algo
             tempSelectedUserId = val;
           },
           decoration: const InputDecoration(labelText: 'Usuario Titular'),
           selectedItemBuilder: (BuildContext context) {
-            // Muestra el texto correcto cuando una opción está seleccionada
             return dropdownItems.map<Widget>((DropdownMenuItem<String?> item) {
               final child = item.child;
               if (child is Text) {
-                // Muestra '(Sin asignar)' si el valor es null
-                return Text(item.value == null ? '(Sin asignar)' : child.data ?? '');
+                return Text(
+                  item.value == null ? '(Sin asignar)' : child.data ?? '',
+                );
               }
-              return const Text(''); // Fallback
+              return const Text('');
             }).toList();
           },
         ),
@@ -209,12 +229,12 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Usa el valor final de la variable temporal al guardar
               final updatedSpot = spot.copyWith(
                 assignedUserId: tempSelectedUserId,
                 clearAssignedUser: tempSelectedUserId == null,
               );
-              await controller.updateParkingSpot(updatedSpot);
+              // --- 👇 LLAMA AL NUEVO MÉTODO ---
+              await controller.update(updatedSpot);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar'),
@@ -226,7 +246,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
 
   Future<void> _confirmDelete(
     BuildContext context,
-    AdminController controller, // Cambiado de 'dynamic' a 'AdminController'
+    ParkingSpotsController controller, // <-- TIPO CAMBIADO
     String spotId,
   ) async {
     final confirm = await showDialog<bool>(
@@ -251,13 +271,14 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     );
 
     if (confirm == true) {
-      await controller.deleteParkingSpot(spotId);
+      // --- 👇 LLAMA AL NUEVO MÉTODO ---
+      await controller.delete(spotId, widget.departmentId);
     }
   }
 
   Future<void> _showQuickAddSpotDialog(
     BuildContext context,
-    AdminController controller,
+    ParkingSpotsController controller, // <-- TIPO CAMBIADO
     String departmentId,
     String establishmentId,
   ) async {
@@ -309,7 +330,8 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                 assignedUserName: null,
                 establishmentId: establishmentId,
               );
-              await controller.createParkingSpot(spot);
+              // --- 👇 LLAMA AL NUEVO MÉTODO ---
+              await controller.create(spot);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Agregar'),
@@ -320,24 +342,23 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
   }
 } // Fin de _ParkingSpotsScreenState
 
-
 // =================================================================
 // ## CLASE AUXILIAR REQUERIDA: DataTableSource
 // =================================================================
+// --- 👇 CAMBIO 8: Actualizamos el tipo del controller ---
 
 class _ParkingSpotsDataSource extends DataTableSource {
   final List<ParkingSpot> parkingSpots;
-  final List<AppUser> users; // Usuarios del departamento
-  final AdminController controller;
+  final List<AppUser> users;
+  final ParkingSpotsController controller; // <-- TIPO CAMBIADO
   final BuildContext context;
-  // Funciones callback para los diálogos
   final Function(ParkingSpot, List<AppUser>) showAssignDialog;
   final Function(String) showDeleteDialog;
 
   _ParkingSpotsDataSource({
     required this.parkingSpots,
     required this.users,
-    required this.controller,
+    required this.controller, // <-- TIPO CAMBIADO
     required this.context,
     required this.showAssignDialog,
     required this.showDeleteDialog,
@@ -351,57 +372,60 @@ class _ParkingSpotsDataSource extends DataTableSource {
     }
     final spot = parkingSpots[index];
 
-    // Lógica para buscar el nombre (la misma que tenías)
     final userName = users
         .firstWhere(
           (u) => u.id == spot.assignedUserId,
           orElse: () => AppUser(
-              id: '', displayName: 'Sin asignar', /*...otros defaults...*/
-              email: '', role: '', establishmentId: '', establishmentName: '',
-              departmentId: '', vehiclePlates: []
+            id: '',
+            displayName: 'Sin asignar',
+            email: '',
+            role: '',
+            establishmentId: '',
+            establishmentName: '',
+            departmentId: '',
+            vehiclePlates: [],
           ),
         )
         .displayName;
 
-    // Devuelve la misma DataRow que ya tenías
-    return DataRow(cells: [
-      DataCell(Text(spot.spotNumber)),
-      DataCell(Text(spot.floor.toString())),
-      DataCell(Text(spot.type)),
-      DataCell(Text(userName)),
-      DataCell(
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.person_add),
-              tooltip: 'Asignar Usuario',
-              onPressed: () {
-                showAssignDialog(spot, users);
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              color: Colors.red,
-              tooltip: 'Eliminar Cochera',
-              onPressed: () {
-                showDeleteDialog(spot.id);
-              },
-            ),
-          ],
+    return DataRow(
+      cells: [
+        DataCell(Text(spot.spotNumber)),
+        DataCell(Text(spot.floor.toString())),
+        DataCell(Text(spot.type)),
+        DataCell(Text(userName)),
+        DataCell(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.person_add),
+                tooltip: 'Asignar Usuario',
+                onPressed: () {
+                  showAssignDialog(spot, users);
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete),
+                color: Colors.red,
+                tooltip: 'Eliminar Cochera',
+                onPressed: () {
+                  showDeleteDialog(spot.id);
+                },
+              ),
+            ],
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
-  // 2. Le dice a la tabla cuántas filas hay en total
+  // --- (El resto de la clase DataSource no tiene cambios) ---
   @override
   int get rowCount => parkingSpots.length;
 
-  // 3. Le dice si la data cambió (siempre true para simplificar)
   @override
   bool get isRowCountApproximate => false;
 
-  // 4. Le dice cuál es la fila seleccionada (ninguna)
   @override
   int get selectedRowCount => 0;
 }

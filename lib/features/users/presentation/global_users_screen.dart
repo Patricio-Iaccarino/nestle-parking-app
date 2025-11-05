@@ -1,13 +1,12 @@
-// global_users_screen.dart
 import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:data_table_2/data_table_2.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
-
 
 class GlobalUsersScreen extends ConsumerStatefulWidget {
   const GlobalUsersScreen({super.key});
@@ -22,41 +21,35 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 VOLVEMOS AL initState ESTABLE ---
     Future.microtask(() async {
-      final establishmentId = ref.read(authControllerProvider).value?.establishmentId;
+      final establishmentId =
+          ref.read(authControllerProvider).value?.establishmentId;
       if (establishmentId == null) return;
-      
-      // 1. Carga los datos del Admin (users, spots, etc.)
-      ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId);
-      
-      // 2. Carga los departamentos (para el dropdown)
+
+      ref
+          .read(adminControllerProvider.notifier)
+          .loadDashboardData(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 VOLVEMOS A LEER LOS PROVIDERS ESTABLES ---
     final adminState = ref.watch(adminControllerProvider);
     final adminController = ref.read(adminControllerProvider.notifier);
     final departmentState = ref.watch(departmentsControllerProvider);
-    // (Borramos usersState)
-    // ------------------------------------------
 
     final bool isLoading = adminState.isLoading || departmentState.isLoading;
     final String? error = adminState.error ?? departmentState.error;
 
-    // --- 👇 Leemos 'users' del adminState (COMO ANTES) ---
-    final users = adminState.users.where((u) { // Filtro local
+    final users = adminState.users.where((u) {
       final q = searchQuery.toLowerCase();
       return u.displayName.toLowerCase().contains(q) ||
           u.email.toLowerCase().contains(q);
     }).toList();
-    
+
     final departments = departmentState.departments;
-    final parkingSpots = adminState.parkingSpots; 
-    // -------------------------------------------------------------------
+    final parkingSpots = adminState.parkingSpots;
 
     return Scaffold(
       appBar: AppBar(
@@ -64,19 +57,21 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            // Refrescamos los providers estables
             onPressed: () {
-              final establishmentId = ref.read(authControllerProvider).value?.establishmentId;
+              final establishmentId =
+                  ref.read(authControllerProvider).value?.establishmentId;
               if (establishmentId == null) return;
-              
-              ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId); 
+              ref
+                  .read(adminControllerProvider.notifier)
+                  .loadDashboardData(establishmentId);
               ref.read(departmentsControllerProvider.notifier).load(establishmentId);
             },
           ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Nuevo Usuario',
-            onPressed: () => _showCreateUserDialog(context, adminController, departments),
+            onPressed: () =>
+                _showCreateUserDialog(context, adminController, departments),
           ),
         ],
       ),
@@ -98,65 +93,31 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : users.isEmpty
                     ? Center(child: Text(error ?? 'No hay usuarios registrados.'))
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columns: const [
-                            DataColumn(label: Text('Nombre')),
-                            DataColumn(label: Text('Email')),
-                            DataColumn(label: Text('Rol')),
-                            DataColumn(label: Text('Departamento')),
-                            DataColumn(label: Text('Cochera')),
-                            DataColumn(label: Text('Acciones')),
-                          ],
-                          rows: users.map((user) {
-                            String departmentName = '-';
-                            try {
-                              departmentName = departments
-                                  .firstWhere((d) => d.id == user.departmentId)
-                                  .name;
-                            } catch (_) { /* no-op */ }
-
-                            String spotNumber = '-';
-                            try {
-                              spotNumber = parkingSpots
-                                  .firstWhere((s) => s.assignedUserId == user.id)
-                                  .spotNumber;
-                            } catch (_) { /* no-op */ }
-
-                            return DataRow(
-                              cells: [
-                                DataCell(Text(user.displayName)),
-                                DataCell(Text(user.email)),
-                                DataCell(Text(user.role)),
-                                DataCell(Text(departmentName)),
-                                DataCell(Text(spotNumber)),
-                                DataCell(
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.edit),
-                                        onPressed: () => _showEditDialog(
-                                          context,
-                                          adminController,
-                                          user,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete),
-                                        color: Colors.red,
-                                        onPressed: () => _confirmDelete(
-                                          context,
-                                          adminController,
-                                          user.id,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList(),
+                    : PaginatedDataTable2(
+                        columns: const [
+                          DataColumn2(label: Text('Nombre'), size: ColumnSize.L),
+                          DataColumn2(label: Text('Email'), size: ColumnSize.L),
+                          DataColumn2(label: Text('Rol'), size: ColumnSize.S),
+                          DataColumn2(label: Text('Departamento'), size: ColumnSize.M),
+                          DataColumn2(label: Text('Cochera'), size: ColumnSize.S),
+                          DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
+                        ],
+                        empty: Center(
+                          child: Text(error ?? 'No se encontraron usuarios.'),
+                        ),
+                        rowsPerPage: 20,
+                        availableRowsPerPage: const [10, 20, 50],
+                        minWidth: 1000,
+                        showFirstLastButtons: true,
+                        wrapInCard: false,
+                        source: _UsersDataSource(
+                          users: users,
+                          departments: departments,
+                          parkingSpots: parkingSpots,
+                          onEdit: (user) =>
+                              _showEditDialog(context, adminController, user),
+                          onDelete: (userId) =>
+                              _confirmDelete(context, adminController, userId),
                         ),
                       ),
           ),
@@ -165,100 +126,65 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
-  // --- 👇 Diálogos VUELTOS A LA NORMALIDAD (llaman a loadDashboardData) ---
-  
-  // En global_users_screen.dart
-
+  // ───────────────────────────────────────────────
+  // CONFIRMAR ELIMINAR USUARIO
+  // ───────────────────────────────────────────────
   Future<void> _confirmDelete(
     BuildContext context,
     AdminController controller,
     String userId,
   ) async {
     bool isDeleting = false;
-    // Usamos 'dialogContext' para poder cerrarlo
-    // sin depender del 'context' del StatefulBuilder
-    late BuildContext dialogContext; 
-
     await showDialog(
       context: context,
-      // Hacemos que la barrera no se pueda cerrar NUNCA mientras está en 'isDeleting'
-      // Para eso, necesitamos que el StatefulBuilder maneje su *propio* barrierDismissible
-      // Pero eso es complejo. Lo más simple es hacerlo no-descartable.
-      barrierDismissible: false, // <-- CAMBIO SIMPLE
-      builder: (context) {
-        dialogContext = context; // Guardamos el context del diálogo
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Eliminar usuario'),
-              content: isDeleting
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 12),
-                        Text('Eliminando usuario...'),
-                      ],
-                    )
-                  : const Text(
-                      '¿Estás seguro de que querés eliminar este usuario? ...'),
-              actions: isDeleting
-                  ? []
-                  : [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext), // Cierra con el context bueno
-                        child: const Text('Cancelar'),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
-                        onPressed: () async {
-                          setState(() => isDeleting = true);
-                          
-                          try {
-                            await controller.deleteUser(userId);
-                            
-                            final establishmentId = ref.read(authControllerProvider).value?.establishmentId;
-                            if (establishmentId != null) {
-                              // ¡AWAITEAMOS la recarga!
-                              await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
-                            }
-                            
-                            // Comprobamos si el diálogo AÚN existe
-                            if (dialogContext.mounted) {
-                              Navigator.pop(dialogContext);
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Usuario eliminado correctamente'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-
-                          } catch (e) {
-                            if (dialogContext.mounted) {
-                              Navigator.pop(dialogContext);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error al eliminar: ${e.toString()}'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                          // No necesitamos 'finally' porque el pop está en el try/catch
-                        },
-                        child: const Text('Eliminar'),
-                      ),
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Eliminar usuario'),
+            content: isDeleting
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('Eliminando usuario...'),
                     ],
-            );
-          },
-        );
-      },
+                  )
+                : const Text('¿Estás seguro de eliminar este usuario?'),
+            actions: isDeleting
+                ? []
+                : [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () async {
+                        setState(() => isDeleting = true);
+                        await controller.deleteUser(userId);
+                        final estId =
+                            ref.read(authControllerProvider).value?.establishmentId;
+                        if (estId != null) {
+                          await ref
+                              .read(adminControllerProvider.notifier)
+                              .loadDashboardData(estId);
+                        }
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text('Eliminar'),
+                    ),
+                  ],
+          );
+        },
+      ),
     );
   }
 
+  // ───────────────────────────────────────────────
+  // CREAR USUARIO
+  // ───────────────────────────────────────────────
   Future<void> _showCreateUserDialog(
     BuildContext context,
     AdminController controller,
@@ -271,15 +197,11 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     bool isSaving = false;
     final authUser = ref.read(authControllerProvider).value;
     final currentEstablishmentId = authUser?.establishmentId ?? '';
-    
-    // Contexto del diálogo
-    late BuildContext dialogContext; 
 
     await showDialog(
       context: context,
-      barrierDismissible: false, // <-- CAMBIO SIMPLE
+      barrierDismissible: false,
       builder: (context) {
-        dialogContext = context;
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -299,7 +221,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
+                      value: selectedRole,
                       decoration: const InputDecoration(labelText: 'Rol'),
                       items: const [
                         DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
@@ -311,10 +233,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     const SizedBox(height: 8),
                     if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                       DropdownButtonFormField<String>(
-                        initialValue: selectedDepartmentId,
-                        decoration: const InputDecoration(
-                          labelText: 'Departamento',
-                        ),
+                        value: selectedDepartmentId,
+                        decoration:
+                            const InputDecoration(labelText: 'Departamento'),
                         items: departments
                             .map((d) => DropdownMenuItem(
                                   value: d.id,
@@ -327,11 +248,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     if (isSaving) ...[
                       const SizedBox(height: 20),
                       const CircularProgressIndicator(),
-                      const SizedBox(height: 12),
-                      const Text(
-                        "Creando usuario...",
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
                     ],
                   ],
                 ),
@@ -339,7 +255,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               actions: [
                 if (!isSaving)
                   TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
+                    onPressed: () => Navigator.pop(context),
                     child: const Text('Cancelar'),
                   ),
                 ElevatedButton(
@@ -350,14 +266,14 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                               emailController.text.trim().isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Complete todos los campos'),
-                              ),
+                                  content:
+                                      Text('Complete todos los campos obligatorios')),
                             );
                             return;
                           }
-                          
+
                           setState(() => isSaving = true);
-                          
+
                           final newUser = AppUser(
                             id: '',
                             email: emailController.text.trim(),
@@ -371,35 +287,17 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                                 ? (selectedDepartmentId ?? '')
                                 : '',
                           );
-                          
-                          try {
-                            await controller.createUser(newUser);
-                            
-                            final establishmentId = ref.read(authControllerProvider).value?.establishmentId;
-                            if (establishmentId != null) {
-                              // ¡AWAITEAMOS la recarga!
-                              await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
-                            }
-                            
-                            if (dialogContext.mounted) {
-                              Navigator.pop(dialogContext);
-                            }
 
-                          } catch (e) {
-                            // Si falla, mostramos el error pero NO cerramos el diálogo
-                            if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error al crear: ${e.toString()}'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              // Dejamos que el usuario corrija
-                              setState(() => isSaving = false); 
-                            }
+                          await controller.createUser(newUser);
+                          final estId =
+                              ref.read(authControllerProvider).value?.establishmentId;
+                          if (estId != null) {
+                            await ref
+                                .read(adminControllerProvider.notifier)
+                                .loadDashboardData(estId);
                           }
-                          // No ponemos 'finally' para que el diálogo
-                          // solo se cierre si todo salió bien.
+
+                          if (context.mounted) Navigator.pop(context);
                         },
                   child: const Text('Guardar'),
                 ),
@@ -411,6 +309,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
+  // ───────────────────────────────────────────────
+  // EDITAR USUARIO
+  // ───────────────────────────────────────────────
   Future<void> _showEditDialog(
     BuildContext context,
     AdminController controller,
@@ -419,15 +320,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     final nameController = TextEditingController(text: user.displayName);
     final emailController = TextEditingController(text: user.email);
     String selectedRole = user.role;
-    bool isSaving = false; // <-- Añadido
-    
-    late BuildContext dialogContext;
+    bool isSaving = false;
 
     await showDialog(
       context: context,
-      barrierDismissible: false, // <-- CAMBIO SIMPLE
+      barrierDismissible: false,
       builder: (context) {
-        dialogContext = context;
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -438,20 +336,21 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   TextField(
                     controller: nameController,
                     decoration: const InputDecoration(labelText: 'Nombre'),
-                    enabled: !isSaving, // <-- Añadido
+                    enabled: !isSaving,
                   ),
                   TextField(
                     controller: emailController,
                     decoration: const InputDecoration(labelText: 'Email'),
-                    enabled: !isSaving, // <-- Añadido
+                    enabled: !isSaving,
                   ),
                   DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
+                    value: selectedRole,
                     items: const [
                       DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
                       DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
                     ],
-                    onChanged: isSaving ? null : (val) => selectedRole = val ?? user.role, // <-- Añadido
+                    onChanged:
+                        isSaving ? null : (val) => selectedRole = val ?? user.role,
                     decoration: const InputDecoration(labelText: 'Rol'),
                   ),
                   if (isSaving) ...[
@@ -463,51 +362,111 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               actions: [
                 if (!isSaving)
                   TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
+                    onPressed: () => Navigator.pop(context),
                     child: const Text('Cancelar'),
                   ),
                 ElevatedButton(
-                  onPressed: isSaving ? null : () async { // <-- Añadido
-                    setState(() => isSaving = true); // <-- Añadido
-                    
-                    final updated = user.copyWith(
-                      displayName: nameController.text.trim(),
-                      email: emailController.text.trim(),
-                      role: selectedRole,
-                    );
-                    
-                    try {
-                      await controller.updateUser(updated);
-                      
-                      final establishmentId = ref.read(authControllerProvider).value?.establishmentId;
-                      if (establishmentId != null) {
-                          // ¡AWAITEAMOS la recarga!
-                          await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
-                      }
-                      
-                      if (dialogContext.mounted) {
-                        Navigator.pop(dialogContext);
-                      }
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setState(() => isSaving = true);
 
-                    } catch (e) {
-                      if (dialogContext.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error al actualizar: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        setState(() => isSaving = false); // <-- Dejamos que corrija
-                      }
-                    }
-                  },
-                  child: Text(isSaving ? 'Guardando...' : 'Guardar cambios'), // <-- Añadido
+                          final updated = user.copyWith(
+                            displayName: nameController.text.trim(),
+                            email: emailController.text.trim(),
+                            role: selectedRole,
+                          );
+
+                          await controller.updateUser(updated);
+                          final estId =
+                              ref.read(authControllerProvider).value?.establishmentId;
+                          if (estId != null) {
+                            await ref
+                                .read(adminControllerProvider.notifier)
+                                .loadDashboardData(estId);
+                          }
+
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                  child: const Text('Guardar cambios'),
                 ),
               ],
             );
-          }
+          },
         );
       },
     );
   }
+}
+
+// ───────────────────────────────────────────────
+// DATA SOURCE 
+// ───────────────────────────────────────────────
+class _UsersDataSource extends DataTableSource {
+  final List<AppUser> users;
+  final List<Department> departments;
+  final List<dynamic> parkingSpots;
+  final Function(AppUser) onEdit;
+  final Function(String) onDelete;
+
+  _UsersDataSource({
+    required this.users,
+    required this.departments,
+    required this.parkingSpots,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  String _getDepartmentName(String? deptId) {
+    if (deptId == null || deptId.isEmpty) return '-';
+    try {
+      return departments.firstWhere((d) => d.id == deptId).name;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _getSpotNumber(String userId) {
+    try {
+      return parkingSpots.firstWhere((s) => s.assignedUserId == userId).spotNumber;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  @override
+  DataRow? getRow(int index) {
+    if (index >= users.length) return null;
+    final user = users[index];
+    return DataRow(
+      cells: [
+        DataCell(Text(user.displayName)),
+        DataCell(Text(user.email)),
+        DataCell(Text(user.role)),
+        DataCell(Text(_getDepartmentName(user.departmentId))),
+        DataCell(Text(_getSpotNumber(user.id))),
+        DataCell(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () => onEdit(user),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => onDelete(user.id),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  int get rowCount => users.length;
+  @override
+  bool get isRowCountApproximate => false;
+  @override
+  int get selectedRowCount => 0;
 }

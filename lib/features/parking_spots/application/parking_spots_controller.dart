@@ -43,6 +43,18 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
     }
   }
 
+  Future<void> loadByEstablishment(String establishmentId) async {
+  state = state.copyWith(isLoading: true, error: null);
+  try {
+    final result = await _repository.getParkingSpotsByEstablishment(establishmentId);
+    state = state.copyWith(parkingSpots: result, isLoading: false);
+  } catch (e) {
+    state = state.copyWith(error: e.toString(), isLoading: false);
+  }
+}
+
+
+
   Future<void> create(ParkingSpot spot) async {
     try {
       await _repository.createParkingSpot(spot);

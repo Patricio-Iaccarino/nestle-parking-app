@@ -45,15 +45,12 @@ class AppLayout extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          // Si es admin Y el nombre del establecimiento no está vacío
           (userRole == 'admin' && establishmentName.isNotEmpty)
-              // Muestra el nombre compuesto
               ? 'Cocheras Nestlé - $establishmentName'
-              // Si no, muestra el título genérico
               : 'Cocheras Nestlé',
-          overflow: TextOverflow.ellipsis, // Evita desbordes
+          overflow: TextOverflow.ellipsis,
         ),
-        backgroundColor: Color(0xFFD91E28),
+        backgroundColor: const Color(0xFFD91E28),
         foregroundColor: Colors.white,
         actions: [
           if (user != null)
@@ -100,35 +97,29 @@ class AppLayout extends ConsumerWidget {
 }
 
 class _SuperAdminNavigationRail extends StatelessWidget {
-  // --- 👇 AÑADIDO ---
-  // Lógica para determinar el índice seleccionado
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/establishments')) return 0;
-    if (location.startsWith('/admins')) return 1; // 👈 Nuevo
-    return 0; // Default
+    if (location.startsWith('/admins')) return 1;
+    return 0;
   }
 
-  // --- 👇 AÑADIDO ---
-  // Lógica para navegar
   void _onDestinationSelected(BuildContext context, int index) {
     switch (index) {
       case 0:
         context.go('/establishments');
         break;
       case 1:
-        context.go('/admins'); // 👈 Nuevo
+        context.go('/admins');
         break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIOS AQUÍ ---
     return NavigationRail(
-      selectedIndex: _getSelectedIndex(context), // 👈 Corregido
-      onDestinationSelected: (index) =>
-          _onDestinationSelected(context, index), // 👈 Corregido
+      selectedIndex: _getSelectedIndex(context),
+      onDestinationSelected: (index) => _onDestinationSelected(context, index),
       labelType: NavigationRailLabelType.all,
       destinations: const [
         NavigationRailDestination(
@@ -138,7 +129,7 @@ class _SuperAdminNavigationRail extends StatelessWidget {
         NavigationRailDestination(
           icon: Icon(Icons.admin_panel_settings_outlined),
           selectedIcon: Icon(Icons.admin_panel_settings),
-          label: Text('Admins'), // Nueva pantalla
+          label: Text('Admins'),
         ),
       ],
     );
@@ -154,9 +145,10 @@ class _AdminNavigationRail extends ConsumerWidget {
     final location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/dashboard')) return 0;
     if (location.startsWith('/departments')) return 1;
-    if (location.startsWith('/users')) return 2; // 👈 Nuevo
-    if (location.startsWith('/reservations')) return 3;
-    if (location.startsWith('/reports')) return 4;
+    if (location.startsWith('/users')) return 2;
+    if (location.startsWith('/parking-spots')) return 3; 
+    if (location.startsWith('/reservations')) return 4;
+    if (location.startsWith('/reports')) return 5;
     return 0;
   }
 
@@ -185,11 +177,15 @@ class _AdminNavigationRail extends ConsumerWidget {
         context.go('/users');
         break;
 
-      case 3: // --- RESERVAS ---
+      case 3: // --- COCHERAS ---
+        context.go('/parking-spots'); 
+        break;
+
+      case 4: // --- RESERVAS ---
         context.go('/reservations');
         break;
 
-      case 4: // --- REPORTES ---
+      case 5: // --- REPORTES ---
         context.go('/reports');
         break;
     }
@@ -212,8 +208,12 @@ class _AdminNavigationRail extends ConsumerWidget {
           label: Text('Departamentos'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.people_alt_rounded), // 👈 NUEVO
+          icon: Icon(Icons.people_alt_rounded),
           label: Text('Usuarios'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.local_parking_rounded), 
+          label: Text('Cocheras'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.book_online),

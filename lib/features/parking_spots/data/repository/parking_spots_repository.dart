@@ -42,6 +42,21 @@ class ParkingSpotsRepository {
 
   // NOTA: Dejamos 'getParkingSpotsByEstablishment' en AdminRepository por ahora,
   // ya que el Dashboard depende de él. Lo moveremos al final.
+
+Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
+  String establishmentId,
+) async {
+  final snapshot = await _firestore
+      .collection('parkingSpots')
+      .where('establishmentId', isEqualTo: establishmentId)
+      .get();
+
+  return snapshot.docs
+      .map((doc) => ParkingSpot.fromMap(doc.data(), doc.id))
+      .toList();
+}
+
+
 }
 
 // --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---

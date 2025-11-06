@@ -5,6 +5,7 @@ import 'package:cocheras_nestle_web/features/establishments/presentation/screens
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/dashboard/dashboard_screen.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/parking_spots_screen.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/global_parking_spots_screen.dart'; 
 import 'package:cocheras_nestle_web/features/reservations/presentation/screens/reservations_screen.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/login_screen.dart';
 import 'package:cocheras_nestle_web/features/users/presentation/users_screen.dart';
@@ -12,7 +13,6 @@ import 'package:cocheras_nestle_web/features/users/presentation/global_users_scr
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cocheras_nestle_web/features/reports/presentation/screens/reports_screen.dart';
-
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authControllerProvider);
@@ -60,7 +60,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           GoRoute(path: '/admins', builder: (context, state) {
-            // Redirigir si el usuario no es superadmin
             if (user == null || user.role != 'superadmin') {
               return const DashboardScreen();
             }
@@ -80,7 +79,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // ======================================================
-          // COCHERAS
+          // COCHERAS POR DEPARTAMENTO (vista interna)
           // ======================================================
           GoRoute(
             path:
@@ -93,9 +92,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 establishmentId: establishmentId,
                 departmentId: departmentId,
                 departmentName:
-                    state.uri.queryParameters['departmentName'] ??
-                        'Departamento',
+                    state.uri.queryParameters['departmentName'] ?? 'Departamento',
               );
+            },
+          ),
+
+          // ======================================================
+          // COCHERAS GLOBALES (vista para admin)
+          // ======================================================
+          GoRoute(
+            path: '/parking-spots',
+            builder: (context, state) => const GlobalParkingSpotsScreen(),
+            redirect: (context, state) {
+              if (user == null || user.role != 'admin') return '/dashboard';
+              return null;
             },
           ),
 
@@ -123,7 +133,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/users',
             builder: (context, state) => const GlobalUsersScreen(),
             redirect: (context, state) {
-              
               if (user == null || user.role != 'admin') return '/dashboard';
               return null;
             },
@@ -135,26 +144,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/reservations',
             builder: (context, state) => const ReservationsScreen(),
-            redirect: (context, state) => (user == null ||
-                    (user.role != 'superadmin' && user.role != 'admin'))
-                ? '/dashboard'
-                : null,
+            redirect: (context, state) =>
+                (user == null ||
+                        (user.role != 'superadmin' && user.role != 'admin'))
+                    ? '/dashboard'
+                    : null,
           ),
 
           // ======================================================
-// REPORTES (acceso para admin y superadmin)
-// ======================================================
-GoRoute(
-  path: '/reports',
-  builder: (context, state) => const ReportsScreen(),
-  redirect: (context, state) {
-    final role = user?.role;
-    if (role != 'admin' && role != 'superadmin') {
-      return '/dashboard';
-    }
-    return null;
-  },
-),
+          // REPORTES (acceso admin y superadmin)
+          // ======================================================
+          GoRoute(
+            path: '/reports',
+            builder: (context, state) => const ReportsScreen(),
+            redirect: (context, state) {
+              final role = user?.role;
+              if (role != 'admin' && role != 'superadmin') {
+                return '/dashboard';
+              }
+              return null;
+            },
+          ),
         ],
       ),
     ],

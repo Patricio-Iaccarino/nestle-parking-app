@@ -223,7 +223,9 @@ class _GlobalParkingSpotsScreenState
   final numberController = TextEditingController(text: spot.spotNumber);
   final floorController = TextEditingController(text: spot.floor.toString());
   String type = spot.type;
-  String selectedDepartmentId = spot.departmentId;
+
+  // ✅ Aseguramos que pueda ser null sin romper el Dropdown
+  String? selectedDepartmentId = spot.departmentId == "" ? null : spot.departmentId;
 
   await showDialog(
     context: context,
@@ -241,6 +243,8 @@ class _GlobalParkingSpotsScreenState
             decoration: const InputDecoration(labelText: 'Piso'),
             keyboardType: TextInputType.number,
           ),
+
+          // ✅ Tipo
           DropdownButtonFormField<String>(
             value: type,
             decoration: const InputDecoration(labelText: 'Tipo'),
@@ -250,13 +254,31 @@ class _GlobalParkingSpotsScreenState
             ],
             onChanged: (val) => type = val ?? 'SIMPLE',
           ),
-          DropdownButtonFormField<String>(
+
+          const SizedBox(height: 12),
+
+          // ✅ Departamento (FIX: agregar item null-safe)
+          DropdownButtonFormField<String?>(
             value: selectedDepartmentId,
             decoration: const InputDecoration(labelText: 'Departamento'),
-            items: departments
-                .map((d) => DropdownMenuItem(value: d.id, child: Text(d.name)))
-                .toList(),
-            onChanged: (val) => selectedDepartmentId = val ?? '',
+
+            items: [
+              const DropdownMenuItem(
+                value: null,
+                child: Text('- Sin departamento -'),
+              ),
+
+              ...departments.map(
+                (d) => DropdownMenuItem(
+                  value: d.id,
+                  child: Text(d.name),
+                ),
+              ),
+            ],
+
+            onChanged: (val) {
+              selectedDepartmentId = val;
+            },
           ),
         ],
       ),
@@ -268,12 +290,15 @@ class _GlobalParkingSpotsScreenState
         ElevatedButton(
           onPressed: () async {
             final updatedSpot = ParkingSpot(
-              id: spot.id, // 👈 mantiene el ID original
+              id: spot.id,
               spotNumber: numberController.text.trim(),
               floor: int.tryParse(floorController.text) ?? 0,
               type: type,
               establishmentId: spot.establishmentId,
-              departmentId: selectedDepartmentId,
+
+              // ✅ Convertimos null → "" para Firestore si hace falta
+              departmentId: selectedDepartmentId ?? "",
+
               assignedUserId: spot.assignedUserId,
               assignedUserName: spot.assignedUserName,
             );
@@ -290,7 +315,6 @@ class _GlobalParkingSpotsScreenState
     ),
   );
 }
-
 
   Future<void> _confirmDelete(
       BuildContext context, String spotId, String departmentId) async {

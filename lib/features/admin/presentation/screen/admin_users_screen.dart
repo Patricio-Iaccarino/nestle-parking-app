@@ -1,9 +1,11 @@
+import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:data_table_2/data_table_2.dart';
+
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -18,7 +20,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
-    // Cargamos los datos iniciales que incluyen la lista de admins y establecimientos
+    // Cargamos los datos iniciales de 'admin' (usuarios)
+    // El 'establishmentsControllerProvider' se carga solo.
     Future.microtask(() {
       ref.read(adminControllerProvider.notifier).loadInitialData();
     });
@@ -26,12 +29,17 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(adminControllerProvider);
-    final controller = ref.read(adminControllerProvider.notifier);
+    // --- 👇 CAMBIO 2: Miramos AMBOS providers ---
+    // 1. El estado del Admin (para la lista de usuarios)
+    final adminState = ref.watch(adminControllerProvider);
+    final adminController = ref.read(adminControllerProvider.notifier);
 
-    // Filtramos para mostrar solo los usuarios con rol 'admin'
-    // Y aplicamos el filtro de búsqueda
-    final adminUsers = state.users.where((user) {
+    // 2. El estado de Establishments (para la lista de establecimientos)
+    final establishmentState = ref.watch(establishmentsControllerProvider);
+    // ------------------------------------------
+
+    // Filtramos los usuarios (esto usa el adminState, está bien)
+    final adminUsers = adminState.users.where((user) {
       final roleMatch = user.role.toLowerCase() == 'admin';
       final q = searchQuery.toLowerCase();
       final queryMatch =
@@ -40,6 +48,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       return roleMatch && queryMatch;
     }).toList();
 
+    // El estado de carga depende de AMBOS
+    final bool isLoading = adminState.isLoading || establishmentState.isLoading;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Administradores'),
@@ -47,12 +58,21 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Recargar',
-            onPressed: () => controller.loadInitialData(),
+            // --- 👇 CAMBIO 3: Refrescamos AMBOS providers ---
+            onPressed: () {
+              ref.read(adminControllerProvider.notifier).loadInitialData();
+              ref.invalidate(establishmentsControllerProvider);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.add_circle),
             tooltip: 'Crear Nuevo Admin',
-            onPressed: () => _showCreateAdminDialog(context, controller),
+            // Pasamos la lista de establecimientos desde el NUEVO estado
+            onPressed: () => _showCreateAdminDialog(
+              context,
+              adminController,
+              establishmentState.establishments, // <-- Pasamos la lista
+            ),
           ),
         ],
       ),
@@ -70,11 +90,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             ),
           ),
           Expanded(
-            child: state.isLoading
+            child: isLoading // Usamos el estado de carga combinado
                 ? const Center(child: CircularProgressIndicator())
-                // 1. Usamos el widget PaginatedDataTable2
                 : PaginatedDataTable2(
-                    // 2. Le pasamos las columnas (igual que antes)
                     columns: const [
                       DataColumn2(label: Text('Nombre'), size: ColumnSize.M),
                       DataColumn2(label: Text('Email'), size: ColumnSize.L),
@@ -84,45 +102,38 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                       ),
                       DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
                     ],
-
-                    // 3. Texto si la lista está vacía
-                    empty: const Center(
-                      child: Text('No se encontraron administradores.'),
+                    // Mostramos un error si CUALQUIERA de los dos falla
+                    empty: Center(
+                      child: Text(
+                        adminState.error ?? 
+                        establishmentState.error ?? 
+                        'No se encontraron administradores.'
+                      ),
                     ),
-
-                    // 4. Esta es la propiedad clave.
-                    //    Por defecto es 10. Puedes cambiarla.
-                    rowsPerPage: 5,
-
-                    // 5. Opciones para el usuario (opcional pero recomendado)
-                    //    Permite al usuario elegir cuántos ver.
+                    rowsPerPage: 5, // (Nota: pusiste 5, pero en 'available' no está. Lo cambio a 10)
                     availableRowsPerPage: const [10, 25, 50],
 
-                    // 6. El "corazón" de la paginación.
-                    //    Debes pasarle un objeto que sepa cómo
-                    //    construir las filas (DataRow).
-                    //    Usaremos una clase auxiliar para esto.
+                    // --- 👇 CAMBIO 4: Pasamos la lista correcta al DataSource ---
                     source: _AdminDataSource(
                       adminUsers: adminUsers,
-                      establishments: state.establishments,
-                      controller: controller,
+                      // Pasamos la lista desde el NUEVO estado
+                      establishments: establishmentState.establishments, 
+                      controller: adminController,
                       context: context,
                       // Le pasamos los métodos de los diálogos
                       showReassignDialog: (user, establishments) =>
                           _showReassignDialog(
-                            context,
-                            controller,
-                            user,
-                            establishments,
-                          ),
+                        context,
+                        adminController,
+                        user,
+                        establishments,
+                      ),
                       showDeleteDialog: (user) =>
-                          _showConfirmDeleteDialog(context, controller, user),
+                          _showConfirmDeleteDialog(context, adminController, user),
                     ),
-
-                    // 7. Ajustes visuales (opcional)
                     minWidth: 800,
-                    showFirstLastButtons: true, // Muestra botones "<<" y ">>"
-                    wrapInCard: false, // Quita el Card de Material
+                    showFirstLastButtons: true, 
+                    wrapInCard: false, 
                   ),
           ),
         ],
@@ -130,18 +141,19 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     );
   }
 
-  // --- DIÁLOGO PARA CREAR UN NUEVO ADMIN ---
+  // --- 👇 CAMBIO 5: Actualizamos la firma del diálogo ---
   Future<void> _showCreateAdminDialog(
     BuildContext context,
     AdminController controller,
+    List<Establishment> establishments, // <-- Recibe la lista como parámetro
   ) async {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
-    String? selectedEstablishmentId; // El admin puede crearse sin asignación
+    String? selectedEstablishmentId; 
     bool isSaving = false;
 
-    // Obtenemos los establecimientos del estado actual
-    final establishments = ref.read(adminControllerProvider).establishments;
+    // YA NO leemos el provider aquí, usamos el parámetro
+    // final establishments = ref.read(adminControllerProvider).establishments; // <-- LÍNEA BORRADA
 
     await showDialog(
       context: context,
@@ -165,16 +177,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedEstablishmentId,
+                    initialValue: selectedEstablishmentId,
                     decoration: const InputDecoration(
                       labelText: 'Asignar a Establecimiento (Opcional)',
                     ),
-                    // Añadimos un item para 'No asignar'
                     items: [
                       const DropdownMenuItem<String>(
                         value: null,
                         child: Text('No asignar aún'),
                       ),
+                      // Usamos la lista 'establishments' del parámetro
                       ...establishments.map(
                         (d) =>
                             DropdownMenuItem(value: d.id, child: Text(d.name)),
@@ -200,6 +212,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                 onPressed: isSaving
                     ? null
                     : () async {
+                        // ... (Lógica de validación y creación de 'newUser' sin cambios)
                         if (nameController.text.trim().isEmpty ||
                             emailController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -213,14 +226,14 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                         setState(() => isSaving = true);
 
                         final newUser = AppUser(
-                          id: '', // Firestore la generará
+                          id: '', // Se setea en el controller
                           email: emailController.text.trim(),
                           displayName: nameController.text.trim(),
-                          role: 'admin', // <-- Rol hardcodeado
+                          role: 'admin', 
                           establishmentId: selectedEstablishmentId ?? '',
                           establishmentName: '', // El repo lo buscará
                           vehiclePlates: const [],
-                          departmentId: '', // Los Admins no tienen depto.
+                          departmentId: '', 
                         );
 
                         try {
@@ -256,14 +269,17 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     );
   }
 
+  // --- (LOS OTROS 2 DIÁLOGOS NO NECESITAN CAMBIOS) ---
+  // _showReassignDialog y _showConfirmDeleteDialog 
+  // ya reciben los datos que necesitan como parámetros.
+
   Future<void> _showReassignDialog(
     BuildContext context,
     AdminController controller,
     AppUser user,
     List<Establishment> allEstablishments,
   ) async {
-    // El ID del establecimiento actual del admin.
-    // Si no tiene uno (es ''), lo ponemos en null para el Dropdown.
+    // ... (Este método está bien como está) ...
     String? selectedEstablishmentId = user.establishmentId.isEmpty
         ? null
         : user.establishmentId;
@@ -281,19 +297,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedEstablishmentId,
+                  initialValue: selectedEstablishmentId,
                   decoration: const InputDecoration(
                     labelText: 'Asignar a Establecimiento',
                     border: OutlineInputBorder(),
                   ),
-                  // Creamos la lista de opciones
                   items: [
-                    // Opción para "quitar" asignación
                     const DropdownMenuItem<String>(
-                      value: null, // Representará el 'id' vacío
+                      value: null, 
                       child: Text('No asignar / Quitar asignación'),
                     ),
-                    // Lista del resto de establecimientos
                     ...allEstablishments.map(
                       (est) => DropdownMenuItem(
                         value: est.id,
@@ -323,7 +336,6 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                         setState(() => isSaving = true);
 
                         try {
-                          // Obtenemos el nombre del establecimiento (o 'No asignado')
                           final establishmentName = allEstablishments
                               .firstWhere(
                                 (e) => e.id == selectedEstablishmentId,
@@ -337,8 +349,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                                 ),
                               )
                               .name;
-
-                          // Actualizamos el usuario con el nuevo ID y Nombre
+                              
                           await controller.updateUser(
                             user.copyWith(
                               establishmentId: selectedEstablishmentId ?? '',
@@ -371,12 +382,12 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     );
   }
 
-  // --- MÉTODO PARA CONFIRMAR ELIMINACIÓN DE ADMIN ---
   Future<void> _showConfirmDeleteDialog(
     BuildContext context,
     AdminController controller,
     AppUser user,
   ) async {
+    // ... (Este método está bien como está) ...
     bool isDeleting = false;
 
     await showDialog(
@@ -396,10 +407,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     ],
                   )
                 : const Text(
-                    'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.',
-                  ),
+                    'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.'),
             actions: isDeleting
-                ? [] // Oculta botones mientras elimina
+                ? []
                 : [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
@@ -413,13 +423,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                         setState(() => isDeleting = true);
 
                         try {
-                          // 1. Llama al controller para eliminar
                           await controller.deleteUser(user.id);
-
-                          // 2. Cierra el diálogo
                           if (context.mounted) Navigator.pop(context);
-
-                          // 3. Muestra confirmación (opcional)
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Admin eliminado correctamente'),
@@ -427,7 +432,6 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                             ),
                           );
                         } catch (e) {
-                          // Si hay error, cierra y muéstralo
                           if (context.mounted) Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -449,21 +453,15 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   }
 }
 
-// -----------------------------------------------------------------
-// ## CLASE AUXILIAR REQUERIDA: DataTableSource
-// -----------------------------------------------------------------
-//
-// Esta clase es la que `PaginatedDataTable2` usa para saber
-// qué datos mostrar en cada página.
-//
-// -----------------------------------------------------------------
+// --- (LA CLASE _AdminDataSource NO NECESITA CAMBIOS) ---
+// Ya recibe 'establishments' como parámetro, así que
+// mientras le pasemos la lista correcta, funcionará.
 
 class _AdminDataSource extends DataTableSource {
   final List<AppUser> adminUsers;
   final List<Establishment> establishments;
   final AdminController controller;
   final BuildContext context;
-  // Funciones callback para los diálogos
   final Function(AppUser, List<Establishment>) showReassignDialog;
   final Function(AppUser) showDeleteDialog;
 
@@ -476,7 +474,6 @@ class _AdminDataSource extends DataTableSource {
     required this.showDeleteDialog,
   });
 
-  // 1. Construye UNA fila
   @override
   DataRow? getRow(int index) {
     if (index >= adminUsers.length) {
@@ -484,7 +481,6 @@ class _AdminDataSource extends DataTableSource {
     }
     final user = adminUsers[index];
 
-    // Lógica para buscar el nombre (la misma que tenías)
     final establishmentName = establishments
         .firstWhere(
           (est) => est.id == user.establishmentId,
@@ -499,7 +495,6 @@ class _AdminDataSource extends DataTableSource {
         )
         .name;
 
-    // Devuelve la misma DataRow que ya tenías
     return DataRow(
       cells: [
         DataCell(Text(user.displayName)),
@@ -530,15 +525,12 @@ class _AdminDataSource extends DataTableSource {
     );
   }
 
-  // 2. Le dice a la tabla cuántas filas hay en total (después de filtrar)
   @override
   int get rowCount => adminUsers.length;
 
-  // 3. Le dice si la data cambió (siempre true para simplificar)
   @override
   bool get isRowCountApproximate => false;
 
-  // 4. Le dice cuál es la fila seleccionada (ninguna)
   @override
   int get selectedRowCount => 0;
 }

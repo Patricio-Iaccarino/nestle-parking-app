@@ -21,17 +21,52 @@ class AuthController extends StateNotifier<AsyncValue<AppUser?>> {
   AuthController(this.repository)
       : super(AsyncValue.data(repository.currentUser));
 
-  Future<AppUser?> signIn(String email, String password) async {
-    state = const AsyncValue.loading();
-    try {
-      final user = await repository.signIn(email, password);
+ Future<AppUser?> signIn(String email, String password) async {
+  state = const AsyncValue.loading();
+  try {
+    // 1. El repositorio loguea al usuario y trae su perfil de Firestore.
+    // (Ahora sabemos que esto ya no crea usuarios 'user' por error).
+    final user = await repository.signIn(email, password);
+
+    // 2. Si el repo devuelve null (error en repo) o el usuario es null.
+    if (user == null) {
+      throw Exception('Usuario o contraseña incorrectos.');
+    }
+
+    // --- 👇 ¡AQUÍ VA LA VALIDACIÓN DE ROL! 👇 ---
+
+    // 3. Limpiamos el rol para evitar errores de espacios o mayúsculas
+    final String userRole = user.role.trim().toLowerCase();
+
+    // 4. Comprobamos si tiene permiso
+    if (userRole == 'admin' || userRole == 'superadmin') {
+      // --- ÉXITO ---
+      // El rol es correcto, lo guardamos en el estado y lo dejamos entrar.
       state = AsyncValue.data(user);
       return user;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow; // para que LoginForm capture errores
+    } else {
+      // --- FALLO POR PERMISOS ---
+      // El usuario existe (ej. es 'TITULAR') pero no es admin.
+      // Lo echamos.
+      await repository.signOut(); // Cerramos la sesión de Firebase Auth
+      state = const AsyncValue.data(null); // Reseteamos el estado
+      
+      // Lanzamos el error que verá el usuario en el formulario
+      throw Exception('No tienes permisos para acceder a este panel.');
     }
+    // --------------------------------------------------
+
+  } catch (e, st) {
+    // 5. Capturamos CUALQUIER error
+    // (sea 'Usuario incorrecto' o 'No tienes permisos')
+    state = AsyncValue.error(e, st);
+    
+    // Nos aseguramos de que esté deslogueado si hubo un error
+    await repository.signOut(); 
+    
+    rethrow; // Re-lanzamos el error para que el formulario (LoginForm) lo muestre
   }
+}
 
   Future<void> signOut() async {
     await repository.signOut();

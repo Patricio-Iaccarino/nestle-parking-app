@@ -1,11 +1,12 @@
 // assign_admin_screen.dart
+import 'package:cocheras_nestle_web/features/admin/application/assign_admin_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 
 
-class AssignAdminScreen extends ConsumerStatefulWidget { // ✨ Convertido a StatefulWidget
+class AssignAdminScreen extends ConsumerStatefulWidget {
   final Establishment establishment;
   const AssignAdminScreen({super.key, required this.establishment});
 
@@ -13,30 +14,33 @@ class AssignAdminScreen extends ConsumerStatefulWidget { // ✨ Convertido a Sta
   ConsumerState<AssignAdminScreen> createState() => _AssignAdminScreenState();
 }
 
-class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> { // ✨ Estado
-  final TextEditingController _searchController = TextEditingController(); // Controlador para el TextField
+class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> {
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // ✨ Cargamos la lista inicial al entrar en la pantalla
+    // --- 👇 CAMBIO 2: Llamamos al NUEVO controller ---
     Future.microtask(() =>
-      ref.read(adminControllerProvider.notifier).loadInitialAssignableUsers()
+      ref.read(assignAdminControllerProvider.notifier).loadInitialAdmins()
     );
   }
 
   @override
   void dispose() {
-    _searchController.dispose(); // Limpiamos el controlador
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final adminState = ref.watch(adminControllerProvider);
+    // --- 👇 CAMBIO 3: Miramos el NUEVO provider para la lista/estado ---
+    final state = ref.watch(assignAdminControllerProvider);
+    final controller = ref.read(assignAdminControllerProvider.notifier);
+    
+    // (Aún necesitamos el AdminController para la acción de asignar)
     final adminController = ref.read(adminControllerProvider.notifier);
   
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Asignar Admin a: ${widget.establishment.name}'),
@@ -47,25 +51,23 @@ class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> { // ✨ 
           children: [
             // --- Barra de Búsqueda ---
             TextField(
-              controller: _searchController, // Usamos el controlador
+              controller: _searchController,
               decoration: InputDecoration(
                 labelText: 'Buscar por nombre o email...',
                 hintText: 'Escribe para filtrar...',
                 suffixIcon: _searchController.text.isEmpty
-                  ? const Icon(Icons.search)
-                  : IconButton( // Botón para limpiar la búsqueda
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        adminController.searchUsers(''); // Llama con query vacía
-                      },
-                    ),
+                    ? const Icon(Icons.search)
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          controller.search(''); // <-- Llama al NUEVO controller
+                        },
+                      ),
                 border: const OutlineInputBorder(),
               ),
               onChanged: (query) {
-                // Llamamos a la función de búsqueda en cada cambio
-                adminController.searchUsers(query);
-                // Forzamos reconstrucción para actualizar el ícono de limpiar
+                controller.search(query); // <-- Llama al NUEVO controller
                 setState(() {}); 
               },
             ),
@@ -74,21 +76,21 @@ class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> { // ✨ 
 
             // --- Lista de Resultados ---
             Expanded(
-              child: adminState.isLoading
+              // --- 👇 CAMBIO 4: Leemos del NUEVO estado ---
+              child: state.isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : adminState.searchResults.isEmpty
-                      // ✨ LÓGICA DEL MENSAJE: Solo si hay texto de búsqueda
+                  : state.assignableAdmins.isEmpty
                       ? Center(
                           child: Text(
                             _searchController.text.isEmpty
-                                ? 'No hay usuarios elegibles para asignar.' // Mensaje inicial si la lista está vacía
-                                : 'No se encontraron usuarios que coincidan con "${_searchController.text}".' // Mensaje si el filtro no da resultados
+                                ? 'No hay usuarios elegibles para asignar.'
+                                : 'No se encontraron usuarios que coincidan con "${_searchController.text}".'
                           )
                         )
                       : ListView.builder(
-                          itemCount: adminState.searchResults.length,
+                          itemCount: state.assignableAdmins.length,
                           itemBuilder: (context, index) {
-                            final user = adminState.searchResults[index];
+                            final user = state.assignableAdmins[index];
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               child: ListTile(
@@ -96,7 +98,7 @@ class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> { // ✨ 
                                   child: Text(user.displayName.isNotEmpty ? user.displayName[0] : '?'),
                                 ),
                                 title: Text(user.displayName),
-                                subtitle: Text("${user.email} (Rol: ${user.role.isEmpty ? 'Sin rol' : user.role})"), // Muestra rol actual
+                                subtitle: Text("${user.email} (Rol: ${user.role.isEmpty ? 'Sin rol' : user.role})"),
                                 trailing: ElevatedButton(
                                   child: const Text('Asignar'),
                                   onPressed: () async {
@@ -118,15 +120,20 @@ class _AssignAdminScreenState extends ConsumerState<AssignAdminScreen> { // ✨ 
                                       ),
                                     );
                                     if (confirm == true) {
+                                      // --- 👇 CAMBIO 5: La acción de asignar ---
+                                      // (Sigue usando el AdminController, ¡esto está bien!)
                                       await adminController.assignAdmin(user.id, widget.establishment.id);
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(  
+                                        ScaffoldMessenger.of(context).showSnackBar( 
                                           SnackBar(
                                             content: Text('${user.displayName} ahora es admin de ${widget.establishment.name}.'),
                                             backgroundColor: Colors.green,
                                           ),
                                         );
-                                        Navigator.pop(context);
+                                        // Refrescamos la lista de admins (por si acaso)
+                                        controller.loadInitialAdmins();
+                                        // Volvemos a la pantalla anterior
+                                        Navigator.pop(context); 
                                       }
                                     }
                                   },

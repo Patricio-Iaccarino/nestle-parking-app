@@ -35,10 +35,11 @@ class ReportsState {
   final List<DetailedReportRecord> detailed;
   final String? error;
 
-  // ✅ NUEVOS CAMPOS (KPIs)
+  // ✅ KPIs
   final int totalSpots;
   final int totalLiberated;
   final int totalBooked;
+  final int occupancyPercent; // ✅ Nuevo KPI Correcto
 
   const ReportsState({
     required this.loading,
@@ -48,6 +49,7 @@ class ReportsState {
     this.totalSpots = 0,
     this.totalLiberated = 0,
     this.totalBooked = 0,
+    this.occupancyPercent = 0,
   });
 
   ReportsState copyWith({
@@ -58,6 +60,7 @@ class ReportsState {
     int? totalSpots,
     int? totalLiberated,
     int? totalBooked,
+    int? occupancyPercent,
   }) {
     return ReportsState(
       loading: loading ?? this.loading,
@@ -67,6 +70,7 @@ class ReportsState {
       totalSpots: totalSpots ?? this.totalSpots,
       totalLiberated: totalLiberated ?? this.totalLiberated,
       totalBooked: totalBooked ?? this.totalBooked,
+      occupancyPercent: occupancyPercent ?? this.occupancyPercent,
     );
   }
 }
@@ -160,7 +164,7 @@ class ReportsController extends Notifier<ReportsState> {
     try {
       final f = state.filter;
 
-      // ✅ Obtener registros detallados
+      // ✅ 1. Obtener registros detallados
       final data = await _repo.fetchDetailedDailyReport(
         start: f.range.start,
         end: f.range.end,
@@ -169,16 +173,32 @@ class ReportsController extends Notifier<ReportsState> {
         userId: f.userId,
       );
 
-      // Calcular KPIs desde `data`
-     // Contar BOOKED y AVAILABLE 
-final totalBooked = data.where((e) => e.status == "BOOKED").length;
-final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
+      // ✅ 2. KPIs de cantidad
+      final totalBooked = data.where((e) => e.status == "BOOKED").length;
+      final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
 
-
-      // ✅ Total cocheras del establecimiento
+      // ✅ 3. Cocheras totales del establecimiento
       final totalSpots = await _repo.countTotalSpots(f.establishmentId!);
 
+      // ✅ 4. Cálculo profesional de días-cochera
+      final start = f.range.start;
+      final end = f.range.end;
+
+      final daysInRange = end.difference(start).inDays + 1;
+
+      final totalCarDays = daysInRange * totalSpots;
+
+      final occupiedCarDays = totalCarDays - totalLiberated;
+
+      final occupancyPercent = 
+          totalCarDays == 0 ? 0 : ((occupiedCarDays / totalCarDays) * 100).round();
+
       print("✅ Reporte cargado: ${data.length} filas");
+      print("📊 Días en rango: $daysInRange");
+      print("📊 Total spots: $totalSpots");
+      print("📊 Días-cochera totales: $totalCarDays");
+      print("📊 Liberaciones: $totalLiberated");
+      print("📊 Ocupación %: $occupancyPercent");
 
       state = state.copyWith(
         loading: false,
@@ -186,7 +206,9 @@ final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
         totalSpots: totalSpots,
         totalBooked: totalBooked,
         totalLiberated: totalLiberated,
+        occupancyPercent: occupancyPercent,
       );
+
     } catch (e, st) {
       print("❌ Error reporte: $e\n$st");
       state = state.copyWith(loading: false, error: e.toString());

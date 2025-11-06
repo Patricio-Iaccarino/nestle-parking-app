@@ -8,7 +8,9 @@ import '../../../../core/services/export_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../auth/presentation/auth_controller.dart';
 
-// 🔹 Provider para departamentos filtrados por establecimiento
+/// ─────────────────────────────────────────────────────────
+/// PROVIDER → Departamentos del establecimiento
+/// ─────────────────────────────────────────────────────────
 final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final auth = ref.watch(authControllerProvider).value;
   final estId = auth?.establishmentId;
@@ -28,27 +30,10 @@ final departmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) asy
       .toList();
 });
 
-// 🔹 Provider para usuarios filtrados por establecimiento
-final usersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final auth = ref.watch(authControllerProvider).value;
-  final estId = auth?.establishmentId;
 
-  if (estId == null) return [];
-
-  final snap = await FirebaseFirestore.instance
-      .collection("users")
-      .where("establishmentId", isEqualTo: estId)
-      .get();
-
-  return snap.docs
-      .map((u) => {
-            "id": u.id,
-            "name": u["displayName"] ?? "",
-          })
-      .toList();
-});
-
-
+/// ─────────────────────────────────────────────────────────
+/// SCREEN PRINCIPAL
+/// ─────────────────────────────────────────────────────────
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
@@ -65,25 +50,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final controller = ref.read(reportsControllerProvider.notifier);
 
     final filtered = state.detailed.where((e) {
-  final s = _searchText.toLowerCase();
-  if (s.isEmpty) return true;
+      final s = _searchText.toLowerCase();
+      if (s.isEmpty) return true;
 
-  return (e.userName ?? "").toLowerCase().contains(s) ||
-         (e.departmentName ?? "").toLowerCase().contains(s) ||
-         (e.spotName ?? "").toLowerCase().contains(s);
-}).toList();
+      return (e.userName ?? "").toLowerCase().contains(s) ||
+          (e.departmentName ?? "").toLowerCase().contains(s) ||
+          (e.spotName ?? "").toLowerCase().contains(s);
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Reporte de Ocupación de Cocheras"),
-
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: "Actualizar",
             onPressed: controller.loadReport,
           ),
-
           PopupMenuButton<String>(
             tooltip: "Exportar",
             icon: const Icon(Icons.download),
@@ -106,7 +89,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           _FiltersRow(
             onSearch: (t) => setState(() => _searchText = t),
             onDeptSelected: controller.setDeptFilter,
-            onUserSelected: controller.setUserFilter,
           ),
 
           _KpiRow(),
@@ -121,15 +103,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : state.error != null
                     ? Center(
                         child: Text("⚠️ ${state.error}",
-                            style: TextStyle(color: Colors.red.shade800)))
+                            style: TextStyle(color: Colors.red.shade800)),
+                      )
                     : _RecordsTable(records: filtered),
-          )
+          ),
         ],
       ),
     );
   }
 }
 
+
+/// ─────────────────────────────────────────────────────────
+/// PICKER DE RANGO DE FECHAS
+/// ─────────────────────────────────────────────────────────
 class _DateRangePicker extends StatelessWidget {
   final ReportsState state;
   final ReportsController controller;
@@ -148,10 +135,8 @@ class _DateRangePicker extends StatelessWidget {
             context: context,
             firstDate: DateTime(2024, 1, 1),
             lastDate: DateTime.now().add(const Duration(days: 365)),
-            initialDateRange: DateTimeRange(
-              start: state.filter.range.start,
-              end: state.filter.range.end,
-            ),
+            initialDateRange:
+                DateTimeRange(start: state.filter.range.start, end: state.filter.range.end),
             locale: const Locale('es', 'ES'),
           );
           if (picked != null) controller.setDateRange(picked);
@@ -169,8 +154,8 @@ class _DateRangePicker extends StatelessWidget {
               const Icon(Icons.date_range, color: Colors.red),
               const SizedBox(width: 8),
               Text(
-                "Desde: ${df.format(state.filter.range.start)} "
-                "→ Hasta: ${df.format(state.filter.range.end)}",
+                "Desde: ${df.format(state.filter.range.start)} → "
+                "Hasta: ${df.format(state.filter.range.end)}",
                 style: const TextStyle(fontSize: 15),
               ),
             ],
@@ -182,17 +167,16 @@ class _DateRangePicker extends StatelessWidget {
 }
 
 
-
-
+/// ─────────────────────────────────────────────────────────
+/// FILTROS (BUSCADOR + DEPARTAMENTOS)
+/// ─────────────────────────────────────────────────────────
 class _FiltersRow extends ConsumerStatefulWidget {
   final Function(String) onSearch;
   final Function(String?) onDeptSelected;
-  final Function(String?) onUserSelected;
 
   const _FiltersRow({
     required this.onSearch,
     required this.onDeptSelected,
-    required this.onUserSelected,
   });
 
   @override
@@ -201,12 +185,10 @@ class _FiltersRow extends ConsumerStatefulWidget {
 
 class _FiltersRowState extends ConsumerState<_FiltersRow> {
   String? selectedDept;
-  String? selectedUser;
 
   @override
   Widget build(BuildContext context) {
     final departmentsAsync = ref.watch(departmentsProvider);
-    final usersAsync = ref.watch(usersProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -227,7 +209,7 @@ class _FiltersRowState extends ConsumerState<_FiltersRow> {
 
           const SizedBox(width: 12),
 
-          // 🏢 Departamentos
+          // 🏢 DROP DEPARTAMENTOS
           departmentsAsync.when(
             data: (list) {
               return DropdownButton<String?>(
@@ -250,63 +232,33 @@ class _FiltersRowState extends ConsumerState<_FiltersRow> {
               );
             },
             loading: () => const SizedBox(
-              width: 22, height: 22,
+              width: 22,
+              height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             error: (_, __) => const Text("Error deps"),
           ),
-
-          const SizedBox(width: 12),
-
-          // 👤 Usuarios
-          usersAsync.when(
-  data: (list) {
-    return DropdownButton<String?>(
-      value: selectedUser,
-      hint: const Text("Usuarios"),
-      onChanged: (value) {
-        setState(() => selectedUser = value);
-        widget.onUserSelected(selectedUser);
-      },
-      items: [
-        const DropdownMenuItem(
-          value: null,
-          child: Text("Todos"),
-        ),
-        ...list.map((u) => DropdownMenuItem(
-              value: u["id"],
-              child: Text(u["name"]),
-            )),
-      ],
-    );
-  },
-  loading: () => const SizedBox(
-    width: 22, height: 22,
-    child: CircularProgressIndicator(strokeWidth: 2),
-  ),
-  error: (_, __) => const Text("Error users"),
-),
         ],
       ),
     );
   }
 }
 
+
+/// ─────────────────────────────────────────────────────────
+/// KPI CARDS
+/// ─────────────────────────────────────────────────────────
 class _KpiRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(reportsControllerProvider);
-
-    final occupancy = state.totalSpots == 0
-        ? 0
-        : (state.totalBooked / state.totalSpots * 100).round();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _kpiCard("Ocupación", "$occupancy%"),
+          _kpiCard("Ocupación", "${state.occupancyPercent}%"),
           _kpiCard("Liberadas", "${state.totalLiberated}"),
           _kpiCard("Reservadas", "${state.totalBooked}"),
           _kpiCard("Total Cocheras", "${state.totalSpots}"),
@@ -325,7 +277,7 @@ class _KpiRow extends ConsumerWidget {
           BoxShadow(
             color: Colors.black12,
             blurRadius: 4,
-            offset: Offset(0,2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -333,10 +285,8 @@ class _KpiRow extends ConsumerWidget {
         children: [
           Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text(value,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -344,7 +294,9 @@ class _KpiRow extends ConsumerWidget {
 }
 
 
-
+/// ─────────────────────────────────────────────────────────
+/// TOTALES (LIBRES / RESERVADAS)
+/// ─────────────────────────────────────────────────────────
 class _TotalsRow extends StatelessWidget {
   final List<DetailedReportRecord> records;
   const _TotalsRow({required this.records});
@@ -373,13 +325,19 @@ class _TotalsRow extends StatelessWidget {
     return Row(
       children: [
         Text("$label: ", style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text("$value",
-            style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        Text(
+          "$value",
+          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }
 }
 
+
+/// ─────────────────────────────────────────────────────────
+/// TABLA DE REGISTROS
+/// ─────────────────────────────────────────────────────────
 class _RecordsTable extends StatelessWidget {
   final List<DetailedReportRecord> records;
   const _RecordsTable({required this.records});
@@ -388,31 +346,37 @@ class _RecordsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final df = DateFormat('dd/MM/yyyy HH:mm');
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(Colors.red.shade50),
-        columns: const [
-          DataColumn(label: Text("Fecha")),
-          DataColumn(label: Text("Estado")),
-          DataColumn(label: Text("Usuario")),
-          DataColumn(label: Text("Depto")),
-          DataColumn(label: Text("Cochera")),
-        ],
-        rows: records.map((r) {
-          return DataRow(cells: [
-            DataCell(Text(df.format(r.releaseDate))),
-            DataCell(Text(
-              r.status,
-              style: TextStyle(
-                color: r.status == "BOOKED" ? Colors.green : Colors.blue,
-              ),
-            )),
-            DataCell(Text(r.userName ?? "-")),
-            DataCell(Text(r.departmentName ?? "-")),
-            DataCell(Text(r.spotName ?? "-")),
-          ]);
-        }).toList(),
+    return Expanded(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(Colors.red.shade50),
+            columns: const [
+              DataColumn(label: Text("Fecha")),
+              DataColumn(label: Text("Estado")),
+              DataColumn(label: Text("Usuario")),
+              DataColumn(label: Text("Depto")),
+              DataColumn(label: Text("Cochera")),
+            ],
+            rows: records.map((r) {
+              return DataRow(cells: [
+                DataCell(Text(df.format(r.releaseDate))),
+                DataCell(Text(
+                  r.status,
+                  style: TextStyle(
+                    color:
+                        r.status == "BOOKED" ? Colors.green : Colors.blue,
+                  ),
+                )),
+                DataCell(Text(r.userName ?? "-")),
+                DataCell(Text(r.departmentName ?? "-")),
+                DataCell(Text(r.spotName ?? "-")),
+              ]);
+            }).toList(),
+          ),
+        ),
       ),
     );
   }

@@ -44,7 +44,71 @@ class ReservationsController extends StateNotifier<ReservationsState> {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
+
+Future<void> addRelease({
+    required String establishmentId,
+    required String departmentId,
+    required String parkingSpotId,
+    required String spotNumber,
+    required String releasedByUserId,
+    required DateTime releaseDate,
+    DateTime? reloadDate, // para refrescar la vista del mismo día
+  }) async {
+    try {
+      await _repository.createRelease(
+        establishmentId: establishmentId,
+        departmentId: departmentId,
+        parkingSpotId: parkingSpotId,
+        spotNumber: spotNumber,
+        releasedByUserId: releasedByUserId,
+        releaseDate: releaseDate,
+      );
+      await load(establishmentId, date: reloadDate ?? releaseDate);
+    } catch (e) {
+  print("🔥 ERROR desde addRelease:");
+  print(e);    // ✅ imprime link completo si viene desde repo
+  state = state.copyWith(error: e.toString());
+  rethrow;
+    }
+  }
+
+  Future<void> reserve({
+    required String establishmentId,
+    required String releaseId,
+    required String bookedByUserId,
+    required DateTime dayForReload,
+  }) async {
+    try {
+      await _repository.reserveRelease(
+        releaseId: releaseId,
+        bookedByUserId: bookedByUserId,
+      );
+      await load(establishmentId, date: dayForReload);
+    } catch (e) {
+  print("🔥 ERROR desde reserve:");
+  print(e);
+  state = state.copyWith(error: e.toString());
+  rethrow;
+    }
+  }
+
+  Future<void> cancel({
+    required String establishmentId,
+    required String releaseId,
+    required DateTime dayForReload,
+  }) async {
+    try {
+      await _repository.cancelReservation(releaseId: releaseId);
+      await load(establishmentId, date: dayForReload);
+    } catch (e) {
+  print("🔥 ERROR desde cancel:");
+  print(e);
+  state = state.copyWith(error: e.toString());
+  rethrow;
+    }
+  }
 }
+
 
 // 3. El Provider para el Controller
 final reservationsControllerProvider =

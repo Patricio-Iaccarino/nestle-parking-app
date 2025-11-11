@@ -9,10 +9,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const ProviderScope(child: MyApp()));
 }
-
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 

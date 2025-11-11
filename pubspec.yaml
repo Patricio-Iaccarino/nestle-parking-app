@@ -23,6 +23,9 @@ dependencies:
     sdk: flutter
   excel: ^4.0.6
   data_table_2: ^2.6.0
+  osm_nominatim: ^4.0.1
+  flutter_typeahead: ^5.2.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0

@@ -6,6 +6,7 @@ class AppTheme {
 
   ThemeData getTheme() {
     return ThemeData(
+      fontFamily: 'Roboto',
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFF005792), // Azul corporativo de Nestlé
         primary: const Color(0xFF005792),

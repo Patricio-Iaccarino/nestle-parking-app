@@ -165,7 +165,7 @@ class _GlobalParkingSpotsScreenState
               keyboardType: TextInputType.number,
             ),
             DropdownButtonFormField<String>(
-              value: type,
+              initialValue: type,
               decoration: const InputDecoration(labelText: 'Tipo'),
               items: const [
                 DropdownMenuItem(value: 'SIMPLE', child: Text('Simple')),
@@ -174,7 +174,7 @@ class _GlobalParkingSpotsScreenState
               onChanged: (val) => type = val ?? 'SIMPLE',
             ),
             DropdownButtonFormField<String>(
-              value: selectedDepartmentId,
+              initialValue: selectedDepartmentId,
               decoration: const InputDecoration(labelText: 'Departamento'),
               items: departments
                   .map((d) =>
@@ -192,7 +192,9 @@ class _GlobalParkingSpotsScreenState
             onPressed: () async {
               if (numberController.text.isEmpty ||
                   floorController.text.isEmpty ||
-                  selectedDepartmentId == null) return;
+                  selectedDepartmentId == null) {
+                return;
+              }
 
               final spot = ParkingSpot(
                 id: '',
@@ -246,7 +248,7 @@ class _GlobalParkingSpotsScreenState
 
           // ✅ Tipo
           DropdownButtonFormField<String>(
-            value: type,
+            initialValue: type,
             decoration: const InputDecoration(labelText: 'Tipo'),
             items: const [
               DropdownMenuItem(value: 'SIMPLE', child: Text('Simple')),
@@ -259,7 +261,7 @@ class _GlobalParkingSpotsScreenState
 
           // ✅ Departamento (FIX: agregar item null-safe)
           DropdownButtonFormField<String?>(
-            value: selectedDepartmentId,
+            initialValue: selectedDepartmentId,
             decoration: const InputDecoration(labelText: 'Departamento'),
 
             items: [

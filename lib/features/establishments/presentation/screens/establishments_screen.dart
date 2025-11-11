@@ -1,3 +1,4 @@
+import 'dart:convert'; // Necesario para json.decode
 import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +7,8 @@ import 'package:data_table_2/data_table_2.dart';
 import 'package:cocheras_nestle_web/features/admin/presentation/screen/assign_Admin_screen.dart';
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
-// Importamos el nuevo controller
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:http/http.dart' as http; // Necesario para las llamadas a la API
 
 class EstablishmentsScreen extends ConsumerStatefulWidget {
   const EstablishmentsScreen({super.key});
@@ -20,20 +22,17 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   @override
   void initState() {
     super.initState();
-    // El 'initState' solo carga los 'users'
-    // El 'establishmentsControllerProvider' se carga solo
     Future.microtask(() {
       ref.read(adminControllerProvider.notifier).loadInitialData();
     });
   }
 
-  // --- 👇 NUEVA FUNCIÓN HELPER SEGURA 👇 ---
   String _getAdminName(List<AppUser> allUsers, String establishmentId) {
-    // Usamos 'firstWhereOrNull' (requiere import 'package:collection/collection.dart')
-    // o un bucle 'for' para ser 100% seguros. Usemos un try-catch que es más simple.
     try {
       final admin = allUsers.firstWhere(
-          (user) => user.role == 'admin' && user.establishmentId == establishmentId);
+        (user) =>
+            user.role == 'admin' && user.establishmentId == establishmentId,
+      );
       return admin.displayName;
     } catch (e) {
       return 'Sin asignar';
@@ -42,19 +41,15 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Miramos los providers
     final establishmentState = ref.watch(establishmentsControllerProvider);
-    final establishmentsController =
-        ref.read(establishmentsControllerProvider.notifier);
+    final establishmentsController = ref.read(
+      establishmentsControllerProvider.notifier,
+    );
 
     final adminState = ref.watch(adminControllerProvider);
     final List<AppUser> allUsers = adminState.users;
-    
-    // --- 👇 LÓGICA DE CARGA MÁS SIMPLE 👇 ---
-    // Mostramos 'loading' si CUALQUIERA de los dos está cargando
-    final bool isLoading =
-        establishmentState.isLoading || adminState.isLoading;
 
+    final bool isLoading = establishmentState.isLoading || adminState.isLoading;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Establecimientos Nestlé'),
@@ -62,7 +57,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              // Refrescamos ambos
               ref.invalidate(establishmentsControllerProvider);
               ref.read(adminControllerProvider.notifier).loadInitialData();
             },
@@ -80,10 +74,9 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
               child: DataTable2(
                 empty: Center(
                   child: Text(
-                    // Mostramos el error si existe
-                    establishmentState.error ?? 
-                    adminState.error ??
-                    'No hay establecimientos registrados.',
+                    establishmentState.error ??
+                        adminState.error ??
+                        'No hay establecimientos registrados.',
                   ),
                 ),
                 minWidth: 700,
@@ -103,7 +96,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                       DataCell(Text(e.name)),
                       DataCell(Text(e.address)),
                       DataCell(Text(e.organizationType)),
-                      DataCell(Text(adminName)), // <-- Ahora es seguro
+                      DataCell(Text(adminName)),
                       DataCell(
                         Row(
                           children: [
@@ -111,14 +104,20 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar',
                               onPressed: () => _showEditDialog(
-                                  context, establishmentsController, e),
+                                context,
+                                establishmentsController,
+                                e,
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete),
                               tooltip: 'Eliminar',
                               color: Colors.red,
                               onPressed: () => _confirmDelete(
-                                  context, establishmentsController, e.id),
+                                context,
+                                establishmentsController,
+                                e.id,
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.person_add),
@@ -145,44 +144,141 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
     );
   }
 
-  // --- (LOS 3 DIÁLOGOS ESTÁN BIEN, NO NECESITAN CAMBIOS) ---
+  final String geoapifyKey = '8e6bd6534958434f8db83ead26538100';
+
   Future<void> _showAddDialog(
-      BuildContext context, EstablishmentsController controller) async {
-    // ... tu código ...
+    BuildContext context,
+    EstablishmentsController controller,
+  ) async {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final addressController = TextEditingController();
     String orgType = 'DEPARTAMENTAL';
+    Map<String, dynamic>? selectedPlace;
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Nuevo Establecimiento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            TextField(
-              controller: addressController,
-              decoration: const InputDecoration(labelText: 'Dirección'),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: orgType,
-              items: const [
-                DropdownMenuItem(
-                  value: 'DEPARTAMENTAL',
-                  child: Text('Departamental'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre',
+                    prefixIcon: Icon(Icons.business),
+                  ),
+                  validator: (val) => val == null || val.trim().isEmpty
+                      ? 'Campo obligatorio'
+                      : null,
                 ),
-                DropdownMenuItem(value: 'UNIFICADO', child: Text('Unificado')),
+                const SizedBox(height: 12),
+                TypeAheadField<Map<String, dynamic>>(
+                  suggestionsCallback: (pattern) async {
+                    final uri = Uri.parse(
+                      'https://api.geoapify.com/v1/geocode/autocomplete'
+                      '?text=${Uri.encodeComponent(pattern)}'
+                      '&lang=es&filter=countrycode:ar&apiKey=$geoapifyKey',
+                    );
+
+                    try {
+                      final response = await http.get(uri);
+                      if (response.statusCode == 200) {
+                        final data = json.decode(response.body);
+                        final features = data['features'] as List?;
+                        if (features == null || features.isEmpty) {
+                          debugPrint(
+                            'Geoapify OK (200), pero no se encontraron features.',
+                          );
+                          return [];
+                        }
+
+                        debugPrint(
+                          'Geoapify OK (200): Encontró ${features.length} features.',
+                        );
+                        return features
+                            .map((f) => f['properties'] as Map<String, dynamic>)
+                            .toList();
+                      } else {
+                        debugPrint('Geoapify error: ${response.statusCode}');
+                        return [];
+                      }
+                    } catch (e) {
+                      debugPrint('Geoapify exception: $e');
+                      return [];
+                    }
+                  },
+                  itemBuilder: (context, suggestion) => ListTile(
+                    leading: const Icon(Icons.place),
+                    title: Text(suggestion['formatted'] ?? ''),
+                  ),
+                  onSelected: (suggestion) {
+                    addressController.text = suggestion['formatted'] ?? '';
+                    selectedPlace = suggestion;
+                  },
+                  // ⚠️ ESTA PARTE ES CLAVE
+                  builder: (context, textController, focusNode) {
+                    // Sincronizamos el interno con el externo
+                    textController.text = addressController.text;
+                    textController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: textController.text.length),
+                    );
+
+                    textController.addListener(() {
+                      addressController.text = textController.text;
+                    });
+
+                    return TextFormField(
+                      controller:
+                          textController, // ✅ usamos el que maneja el paquete
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Dirección',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Seleccione una dirección válida';
+                        }
+                        if (selectedPlace == null) {
+                          return 'Seleccione una dirección de la lista';
+                        }
+                        return null;
+                      },
+                    );
+                  },
+                  emptyBuilder: (context) => const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text('No se encontraron direcciones.'),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: orgType,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'DEPARTAMENTAL',
+                      child: Text('Departamental'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'UNIFICADO',
+                      child: Text('Unificado'),
+                    ),
+                  ],
+                  onChanged: (val) => orgType = val ?? 'DEPARTAMENTAL',
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de organización',
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                ),
               ],
-              onChanged: (val) => orgType = val ?? 'DEPARTAMENTAL',
-              decoration: const InputDecoration(
-                labelText: 'Tipo de organización',
-              ),
             ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -191,12 +287,16 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
               final est = Establishment(
                 id: '',
                 name: nameController.text.trim(),
                 address: addressController.text.trim(),
                 organizationType: orgType,
                 createdAt: DateTime.now(),
+                latitude: selectedPlace?['lat']?.toDouble(),
+                longitude: selectedPlace?['lon']?.toDouble(),
               );
               await controller.create(est);
               if (context.mounted) Navigator.pop(context);
@@ -208,43 +308,156 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
     );
   }
 
+  // --- 👇 CÓDIGO CON MÁS PRINTS DE DEPURACIÓN 👇 ---
   Future<void> _showEditDialog(
-      BuildContext context, EstablishmentsController controller, Establishment e) async {
-    // ... tu código ...
-    final nameController = TextEditingController(text: e.name);
-    final addressController = TextEditingController(text: e.address);
-    String orgType = e.organizationType;
+    BuildContext context,
+    EstablishmentsController controller,
+    Establishment establishment,
+  ) async {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: establishment.name);
+    final addressController = TextEditingController(
+      text: establishment.address,
+    );
+    String orgType = establishment.organizationType;
+
+    Map<String, dynamic>? selectedProperties = {
+      'lat': establishment.latitude,
+      'lon': establishment.longitude,
+      'formatted': establishment.address,
+    };
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Editar Establecimiento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            TextField(
-              controller: addressController,
-              decoration: const InputDecoration(labelText: 'Dirección'),
-            ),
-            DropdownButtonFormField<String>(
-              initialValue: orgType,
-              items: const [
-                DropdownMenuItem(
-                  value: 'DEPARTAMENTAL',
-                  child: Text('Departamental'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre',
+                    prefixIcon: Icon(Icons.business),
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingrese un nombre'
+                      : null,
                 ),
-                DropdownMenuItem(value: 'UNIFICADO', child: Text('Unificado')),
+                const SizedBox(height: 12),
+                TypeAheadField<Map<String, dynamic>>(
+                  suggestionsCallback: (pattern) async {
+                    // --- 👇 AÑADIMOS PRINTS AQUÍ 👇 ---
+                    debugPrint('--- suggestionsCallback (EDIT) INICIADO ---');
+                    debugPrint('Pattern: "$pattern"');
+
+                    if (pattern.length < 3) {
+                      debugPrint(
+                        'Pattern demasiado corto, devolviendo lista vacía.',
+                      );
+                      return [];
+                    }
+
+                    final geoapifyUrl =
+                        'https://api.geoapify.com/v1/geocode/autocomplete'
+                        '?text=${Uri.encodeComponent(pattern)}'
+                        '&lang=es&filter=countrycode:ar&apiKey=$geoapifyKey';
+
+                    // Pasamos la URL por un proxy que agrega los headers de CORS
+                    final uri = Uri.parse(
+                      'https://corsproxy.io/?${Uri.encodeComponent(geoapifyUrl)}',
+                    );
+
+                    try {
+                      final response = await http.get(uri);
+                      if (response.statusCode == 200) {
+                        final data = json.decode(response.body);
+                        final features = data['features'] as List?;
+                        if (features == null || features.isEmpty) {
+                          debugPrint(
+                            'Geoapify OK (200), pero no se encontraron features.',
+                          );
+                          return [];
+                        }
+
+                        debugPrint(
+                          'Geoapify OK (200): Encontró ${features.length} features.',
+                        );
+                        return features
+                            .map((f) => f['properties'] as Map<String, dynamic>)
+                            .toList();
+                      } else {
+                        debugPrint('Geoapify error: ${response.statusCode}');
+                        return [];
+                      }
+                    } catch (e) {
+                      debugPrint('Geoapify exception: $e');
+                      return [];
+                    }
+                  },
+                  itemBuilder: (context, suggestion) {
+                    return ListTile(
+                      leading: const Icon(Icons.place),
+                      title: Text(suggestion['formatted'] ?? ''),
+                    );
+                  },
+                  onSelected: (suggestion) {
+                    addressController.text = suggestion['formatted'] ?? '';
+                    selectedProperties = suggestion;
+                  },
+                  builder: (context, controller, focusNode) => TextFormField(
+                    controller: addressController,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Dirección',
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Seleccione una dirección válida';
+                      }
+                      if (selectedProperties == null && v.isNotEmpty) {
+                        return 'Seleccione una dirección de la lista';
+                      }
+                      return null;
+                    },
+                  ),
+                  // --- 👇 AÑADIMOS ESTE WIDGET PARA TRADUCIR "No items found" 👇 ---
+                  emptyBuilder: (context) {
+                    return const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: Text('No se encontraron direcciones.'),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: orgType,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'DEPARTAMENTAL',
+                      child: Text('Departamental'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'UNIFICADO',
+                      child: Text('Unificado'),
+                    ),
+                  ],
+                  onChanged: (val) =>
+                      orgType = val ?? establishment.organizationType,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de organización',
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Seleccione un tipo' : null,
+                ),
               ],
-              onChanged: (val) => orgType = val ?? e.organizationType,
-              decoration: const InputDecoration(
-                labelText: 'Tipo de organización',
-              ),
             ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -253,11 +466,16 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final updated = e.copyWith(
+              if (!formKey.currentState!.validate()) return;
+
+              final updated = establishment.copyWith(
                 name: nameController.text.trim(),
                 address: addressController.text.trim(),
                 organizationType: orgType,
+                latitude: selectedProperties?['lat']?.toDouble(),
+                longitude: selectedProperties?['lon']?.toDouble(),
               );
+
               await controller.update(updated);
               if (context.mounted) Navigator.pop(context);
             },
@@ -269,8 +487,10 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, EstablishmentsController controller, String id) async {
-    // ... tu código ...
+    BuildContext context,
+    EstablishmentsController controller,
+    String id,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

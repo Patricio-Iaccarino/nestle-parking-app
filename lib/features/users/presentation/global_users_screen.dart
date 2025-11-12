@@ -2,10 +2,11 @@ import 'package:cocheras_nestle_web/features/departments/application/departments
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:data_table_2/data_table_2.dart';
+import 'package:data_table_2/data_table_2.dart'; // (Importado de tu código anterior)
 import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart'; // (Necesario para el DataSource)
 
 class GlobalUsersScreen extends ConsumerStatefulWidget {
   const GlobalUsersScreen({super.key});
@@ -191,13 +192,14 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
   }
 
   // ───────────────────────────────────────────────
-  // CREAR USUARIO
+  // CREAR USUARIO (CON VALIDACIÓN)
   // ───────────────────────────────────────────────
   Future<void> _showCreateUserDialog(
     BuildContext context,
     AdminController controller,
     List<Department> departments,
   ) async {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     String selectedRole = 'TITULAR';
@@ -214,50 +216,91 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Nuevo Usuario'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Nombre'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: emailController,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
-                      decoration: const InputDecoration(labelText: 'Rol'),
-                      items: const [
-                        DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
-                        DropdownMenuItem(
-                            value: 'SUPLENTE', child: Text('Suplente')),
-                      ],
-                      onChanged: (val) =>
-                          setState(() => selectedRole = val ?? 'TITULAR'),
-                    ),
-                    const SizedBox(height: 8),
-                    if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedDepartmentId,
-                        decoration: const InputDecoration(labelText: 'Departamento'),
-                        items: departments
-                            .map((d) => DropdownMenuItem(
-                                  value: d.id,
-                                  child: Text(d.name),
-                                ))
-                            .toList(),
-                        onChanged: (val) =>
-                            setState(() => selectedDepartmentId = val),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        enabled: !isSaving,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Campo obligatorio';
+                          }
+                          return null;
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                       ),
-                    if (isSaving) ...[
-                      const SizedBox(height: 20),
-                      const CircularProgressIndicator(),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: emailController,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        enabled: !isSaving,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Email obligatorio';
+                          }
+                          final emailRegex = RegExp(
+                              r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                          if (!emailRegex.hasMatch(val)) {
+                            return 'Formato de email inválido';
+                          }
+                          return null;
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRole,
+                        decoration: const InputDecoration(labelText: 'Rol'),
+                        items: const [
+                          DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
+                          DropdownMenuItem(
+                              value: 'SUPLENTE', child: Text('Suplente')),
+                        ],
+                        onChanged: isSaving
+                            ? null
+                            : (val) =>
+                                setState(() => selectedRole = val ?? 'TITULAR'),
+                      ),
+                      const SizedBox(height: 8),
+                      if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedDepartmentId,
+                          decoration:
+                              const InputDecoration(labelText: 'Departamento'),
+                          items: departments
+                              .map((d) => DropdownMenuItem(
+                                    value: d.id,
+                                    child: Text(d.name),
+                                  ))
+                              .toList(),
+                          onChanged: isSaving
+                              ? null
+                              : (val) =>
+                                  setState(() => selectedDepartmentId = val),
+                          
+                          // --- 👇 AQUÍ ESTÁ EL ARREGLO 👇 ---
+                          // (Simplemente chequeamos que no sea nulo,
+                          // ya que este campo solo aparece si el rol es Titular o Suplente)
+                          validator: (val) {
+                            if (val == null) {
+                              return 'Debe seleccionar un depto.';
+                            }
+                            return null;
+                          },
+                          // ---------------------------------
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                        ),
+                      if (isSaving) ...[
+                        const SizedBox(height: 20),
+                        const CircularProgressIndicator(),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               actions: [
@@ -270,14 +313,8 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
-                          if (nameController.text.trim().isEmpty ||
-                              emailController.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Complete todos los campos obligatorios')),
-                            );
-                            return;
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return; 
                           }
 
                           setState(() => isSaving = true);
@@ -290,24 +327,32 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             establishmentId: currentEstablishmentId,
                             establishmentName: '',
                             vehiclePlates: const [],
-                            departmentId: (selectedRole == 'TITULAR' ||
-                                    selectedRole == 'SUPLENTE')
-                                ? (selectedDepartmentId ?? '')
-                                : '',
+                            departmentId: selectedDepartmentId ?? '',
                           );
-
-                          await controller.createUser(newUser);
-                          final estId = ref
-                              .read(authControllerProvider)
-                              .value
-                              ?.establishmentId;
-                          if (estId != null) {
-                            await ref
-                                .read(adminControllerProvider.notifier)
-                                .loadDashboardData(estId);
+                          
+                          try {
+                            await controller.createUser(newUser);
+                            final estId = ref
+                                .read(authControllerProvider)
+                                .value
+                                ?.establishmentId;
+                            if (estId != null) {
+                              await ref
+                                  .read(adminControllerProvider.notifier)
+                                  .loadDashboardData(estId);
+                            }
+                            if (context.mounted) Navigator.pop(context);
+                          } catch (e) {
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al crear: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                             }
+                             setState(() => isSaving = false);
                           }
-
-                          if (context.mounted) Navigator.pop(context);
                         },
                   child: const Text('Guardar'),
                 ),
@@ -320,13 +365,15 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
   }
 
   // ───────────────────────────────────────────────
-  // EDITAR USUARIO
+  // EDITAR USUARIO (CON VALIDACIÓN)
   // ───────────────────────────────────────────────
   Future<void> _showEditDialog(
     BuildContext context,
     AdminController controller,
     AppUser user,
   ) async {
+    // --- 👇 CAMBIO 1: Añadir FormKey ---
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: user.displayName);
     final emailController = TextEditingController(text: user.email);
     String selectedRole = user.role;
@@ -340,34 +387,59 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Editar Usuario'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
-                    enabled: !isSaving,
-                  ),
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    enabled: !isSaving,
-                  ),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    items: const [
-                      DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
-                      DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
-                    ],
-                    onChanged:
-                        isSaving ? null : (val) => selectedRole = val ?? user.role,
-                    decoration: const InputDecoration(labelText: 'Rol'),
-                  ),
-                  if (isSaving) ...[
-                    const SizedBox(height: 20),
-                    const CircularProgressIndicator(),
-                  ]
-                ],
+              // --- 👇 CAMBIO 2: Envolver en Form ---
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // --- 👇 CAMBIO 3: Usar TextFormField ---
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                      enabled: !isSaving,
+                      // --- 👇 CAMBIO 4: Añadir Validador ---
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Campo obligatorio';
+                        }
+                        return null;
+                      },
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                    ),
+                    TextFormField(
+                      controller: emailController,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      enabled: !isSaving,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Email obligatorio';
+                        }
+                        final emailRegex = RegExp(
+                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                        if (!emailRegex.hasMatch(val)) {
+                          return 'Formato de email inválido';
+                        }
+                        return null;
+                      },
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedRole,
+                      items: const [
+                        DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
+                        DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
+                      ],
+                      onChanged:
+                          isSaving ? null : (val) => selectedRole = val ?? user.role,
+                      decoration: const InputDecoration(labelText: 'Rol'),
+                    ),
+                    if (isSaving) ...[
+                      const SizedBox(height: 20),
+                      const CircularProgressIndicator(),
+                    ]
+                  ],
+                ),
               ),
               actions: [
                 if (!isSaving)
@@ -379,6 +451,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
+                          // --- 👇 CAMBIO 5: Validar el Formulario ---
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return; // No es válido
+                          }
+                          // ------------------------------------
+
                           setState(() => isSaving = true);
 
                           final updated = user.copyWith(
@@ -387,16 +465,22 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             role: selectedRole,
                           );
 
-                          await controller.updateUser(updated);
-                          final estId =
-                              ref.read(authControllerProvider).value?.establishmentId;
-                          if (estId != null) {
-                            await ref
-                                .read(adminControllerProvider.notifier)
-                                .loadDashboardData(estId);
+                          try {
+                            await controller.updateUser(updated);
+                            // 'updateUser' ya llama a 'loadInitialData',
+                            // así que la lista se refrescará sola.
+                            if (context.mounted) Navigator.pop(context);
+                          } catch (e) {
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al actualizar: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                             }
+                             setState(() => isSaving = false);
                           }
-
-                          if (context.mounted) Navigator.pop(context);
                         },
                   child: const Text('Guardar cambios'),
                 ),
@@ -410,12 +494,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 }
 
 // ───────────────────────────────────────────────
-// DATA SOURCE 
+// DATA SOURCE (Sin cambios)
 // ───────────────────────────────────────────────
 class _UsersDataSource extends DataTableSource {
   final List<AppUser> users;
   final List<Department> departments;
-  final List<dynamic> parkingSpots;
+  final List<dynamic> parkingSpots; // Sigue siendo List<dynamic>
   final Function(AppUser) onEdit;
   final Function(String) onDelete;
 
@@ -438,7 +522,10 @@ class _UsersDataSource extends DataTableSource {
 
   String _getSpotNumber(String userId) {
     try {
-      return parkingSpots.firstWhere((s) => s.assignedUserId == userId).spotNumber;
+      // Asumimos que parkingSpots es List<ParkingSpot>
+      return (parkingSpots as List<ParkingSpot>)
+          .firstWhere((s) => s.assignedUserId == userId)
+          .spotNumber;
     } catch (_) {
       return '-';
     }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../auth_controller.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
@@ -14,38 +13,36 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
 
+  // --- 👇 ARREGLO: Añadimos 'try/catch' al método _signIn ---
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-    final authController = ref.read(authControllerProvider.notifier);
-
     try {
-      final user = await authController.signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-
-      if (user != null && mounted) {
-        context.go('/dashboard');
-      }
+      // 1. Intentamos iniciar sesión
+      await ref.read(authControllerProvider.notifier).signIn(
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al iniciar sesión: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // 2. ¡No hacemos nada aquí!
+      // Este 'catch' solo existe para "atrapar" el error y
+      // evitar que la app crashee.
+      // La 'LoginScreen' (la pantalla padre) ya está usando
+      // ref.listen() para mostrar la SnackBar de error.
     }
+  }
+  
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // (El 'build' method con las validaciones de RegEx está perfecto)
     return Form(
       key: _formKey,
       child: Column(
@@ -55,10 +52,24 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             controller: _emailController,
             decoration: const InputDecoration(
               labelText: 'Correo electrónico',
-              prefixIcon: Icon(Icons.email),
+              prefixIcon: Icon(Icons.email_outlined),
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Colors.white,
             ),
-            validator: (value) =>
-                value == null || value.isEmpty ? 'Ingrese su correo' : null,
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Ingrese su correo';
+              }
+              final emailRegex = RegExp(
+                  r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+              if (!emailRegex.hasMatch(value)) {
+                return 'Formato de email inválido';
+              }
+              return null;
+            },
+            autovalidateMode: AutovalidateMode.onUserInteraction,
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -66,24 +77,28 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             obscureText: true,
             decoration: const InputDecoration(
               labelText: 'Contraseña',
-              prefixIcon: Icon(Icons.lock),
+              prefixIcon: Icon(Icons.lock_outlined),
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Colors.white,
             ),
             validator: (value) =>
                 value == null || value.isEmpty ? 'Ingrese su contraseña' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
           ),
           const SizedBox(height: 24),
-          _isLoading
-              ? const CircularProgressIndicator()
-              : SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _signIn,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Iniciar sesión'),
-                  ),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _signIn,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: const Color(0xFFD91E28),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Iniciar sesión', style: TextStyle(fontSize: 16)),
+            ),
+          ),
         ],
       ),
     );

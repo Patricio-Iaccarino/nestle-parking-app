@@ -22,7 +22,7 @@ class AppUser {
   factory AppUser.empty() {
     return AppUser(
       id: '',
-      displayName: 'Usuario Desconocido',
+      displayName: 'Sin asignar',
       email: '',
       role: '',
       establishmentId: '',

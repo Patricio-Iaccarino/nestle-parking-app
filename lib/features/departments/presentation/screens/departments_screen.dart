@@ -18,15 +18,10 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: El initState ahora llama a AMBOS controllers ---
     Future.microtask(() {
-      // 1. Llama al nuevo controller para cargar los departamentos
       ref
           .read(departmentsControllerProvider.notifier)
           .load(widget.establishmentId);
-
-      // 2. Llama al viejo controller para cargar spots y users
-      //    (Esto asume que arreglaste 'loadDashboardData' como te indiqué)
       ref
           .read(adminControllerProvider.notifier)
           .loadDashboardData(widget.establishmentId);
@@ -35,18 +30,12 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 3: Miramos AMBOS providers ---
-    // 1. El nuevo provider para la lista de departamentos
     final departmentState = ref.watch(departmentsControllerProvider);
     final departmentsController = ref.read(
       departmentsControllerProvider.notifier,
     );
-
-    // 2. El provider antiguo, para 'users' y 'parkingSpots'
     final adminState = ref.watch(adminControllerProvider);
-    // -------------------------------------
 
-    // El estado de carga depende de AMBOS
     final bool isLoading = departmentState.isLoading || adminState.isLoading;
 
     return Scaffold(
@@ -55,7 +44,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            // --- 👇 CAMBIO 4: Refrescamos AMBOS ---
             onPressed: () {
               ref
                   .read(departmentsControllerProvider.notifier)
@@ -67,7 +55,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            // Pasamos el NUEVO controller al diálogo
             onPressed: () => _showAddDialog(context, departmentsController),
           ),
         ],
@@ -77,7 +64,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           : Padding(
               padding: const EdgeInsets.all(16),
               child: DataTable2(
-                // --- 👇 CAMBIO 5: Usamos el nuevo estado ---
                 empty: Center(
                   child: Text(
                     departmentState.error ??
@@ -94,13 +80,10 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                   DataColumn2(label: Text('Usuarios'), size: ColumnSize.S),
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.L),
                 ],
-                // Usamos la lista de departamentos del NUEVO estado
                 rows: departmentState.departments.map((dept) {
-                  // Seguimos usando 'parkingSpots' y 'users' del VIEJO estado
                   final spotsInDept = adminState.parkingSpots
                       .where((s) => s.departmentId == dept.id)
                       .length;
-
                   final usersInDept = adminState.users
                       .where((u) => u.departmentId == dept.id)
                       .length;
@@ -125,8 +108,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             ),
                             IconButton(
                               icon: const Icon(
-                                Icons.directions_car_filled_outlined,
-                              ),
+                                  Icons.directions_car_filled_outlined),
                               tooltip: 'Ver Cocheras',
                               onPressed: () {
                                 context.push(
@@ -137,7 +119,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             IconButton(
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar Departamento',
-                              // Pasamos el NUEVO controller
                               onPressed: () => _showEditDialog(
                                 context,
                                 departmentsController,
@@ -148,7 +129,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               icon: const Icon(Icons.delete),
                               tooltip: 'Eliminar Departamento',
                               color: Colors.red,
-                              // Pasamos el NUEVO controller
                               onPressed: () => _confirmDelete(
                                 context,
                                 departmentsController,
@@ -166,13 +146,13 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  // --- 👇 CAMBIO 6: Actualizamos la firma de los diálogos ---
-
+  // --- 👇 CÓDIGO ACTUALIZADO CON VALIDACIÓN 👇 ---
   Future<void> _showAddDialog(
     BuildContext context,
     DepartmentsController controller,
   ) async {
-    // <-- TIPO CAMBIADO
+    // --- CAMBIO 1: Clave del Formulario ---
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
 
@@ -180,18 +160,32 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Nuevo Departamento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Descripción'),
-            ),
-          ],
+        // --- CAMBIO 2: Envolver en un Form ---
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- CAMBIO 3: Cambiar a TextFormField ---
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+                // --- CAMBIO 4: Añadir validador ---
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'El nombre no puede estar vacío';
+                  }
+                  return null;
+                },
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+              ),
+              TextFormField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+                // (La descripción puede ser opcional, así que no añadimos validador)
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -200,17 +194,18 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newDept = Department(
-                id: '', // Se genera en el repository
-                name: nameController.text.trim(),
-                description: descriptionController.text.trim(),
-                establishmentId:
-                    widget.establishmentId, // <-- Lo toma del widget
-                createdAt: DateTime.now(),
-              );
-              // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
-              await controller.create(newDept);
-              if (context.mounted) Navigator.pop(context);
+              // --- CAMBIO 5: Validar antes de guardar ---
+              if (formKey.currentState?.validate() ?? false) {
+                final newDept = Department(
+                  id: '',
+                  name: nameController.text.trim(),
+                  description: descriptionController.text.trim(),
+                  establishmentId: widget.establishmentId,
+                  createdAt: DateTime.now(),
+                );
+                await controller.create(newDept);
+                if (context.mounted) Navigator.pop(context);
+              }
             },
             child: const Text('Guardar'),
           ),
@@ -219,33 +214,47 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
+  // --- 👇 CÓDIGO ACTUALIZADO CON VALIDACIÓN 👇 ---
   Future<void> _showEditDialog(
     BuildContext context,
     DepartmentsController controller,
     Department dept,
   ) async {
-    // <-- TIPO CAMBIADO
+    // --- CAMBIO 1: Clave del Formulario ---
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: dept.name);
-    final descriptionController = TextEditingController(
-      text: dept.description ?? '',
-    );
+    final descriptionController =
+        TextEditingController(text: dept.description ?? '');
 
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Editar Departamento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre'),
-            ),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Descripción'),
-            ),
-          ],
+        // --- CAMBIO 2: Envolver en un Form ---
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- CAMBIO 3: Cambiar a TextFormField ---
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+                // --- CAMBIO 4: Añadir validador ---
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'El nombre no puede estar vacío';
+                  }
+                  return null;
+                },
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+              ),
+              TextFormField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -254,13 +263,15 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final updatedDept = dept.copyWith(
-                name: nameController.text.trim(),
-                description: descriptionController.text.trim(),
-              );
-              // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
-              await controller.update(updatedDept);
-              if (context.mounted) Navigator.pop(context);
+              // --- CAMBIO 5: Validar antes de guardar ---
+              if (formKey.currentState?.validate() ?? false) {
+                final updatedDept = dept.copyWith(
+                  name: nameController.text.trim(),
+                  description: descriptionController.text.trim(),
+                );
+                await controller.update(updatedDept);
+                if (context.mounted) Navigator.pop(context);
+              }
             },
             child: const Text('Guardar cambios'),
           ),
@@ -274,7 +285,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     DepartmentsController controller,
     String id,
   ) async {
-    // <-- TIPO CAMBIADO
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -297,8 +307,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
 
     if (confirm == true) {
-      // --- 👇 LLAMAMOS AL NUEVO MÉTODO ---
-      // Le pasamos el 'establishmentId' para que sepa qué lista recargar
       await controller.delete(id, widget.establishmentId);
     }
   }

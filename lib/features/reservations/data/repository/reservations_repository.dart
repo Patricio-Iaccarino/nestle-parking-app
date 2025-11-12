@@ -1,73 +1,71 @@
-// lib/features/reservations/data/repository/reservations_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logger/logger.dart';
 
 class ReservationsRepository {
   final FirebaseFirestore _firestore;
+  final Logger _logger = Logger(); 
+
   ReservationsRepository(this._firestore);
 
-   /// Normaliza una fecha al inicio del día (00:00:00)
+  /// Normaliza una fecha al inicio del día (00:00:00)
   DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
   // --- 🔹 MÉTODO MOVIDO DESDE ADMIN_REPOSITORY 🔹 ---
-
   Future<List<SpotRelease>> getReservations(
-  String establishmentId, {
-  DateTime? date,
-}) async {
-  try {
-    Query query = _firestore
-        .collection('spotReleases')
-        .where('establishmentId', isEqualTo: establishmentId);
+    String establishmentId, {
+    DateTime? date,
+  }) async {
+    try {
+      Query query = _firestore
+          .collection('spotReleases')
+          .where('establishmentId', isEqualTo: establishmentId);
 
-    if (date != null) {
-      final start = _startOfDay(date);
-      final end = start
-          .add(const Duration(days: 1))
-          .subtract(const Duration(milliseconds: 1));
+      if (date != null) {
+        final start = _startOfDay(date);
+        final end = start
+            .add(const Duration(days: 1))
+            .subtract(const Duration(milliseconds: 1));
 
-      query = query
-          .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end));
-    }
-
-    final snapshot = await query.get();
-
-    print("✅ Firestore devolvió ${snapshot.docs.length} documentos");
-
-    for (var doc in snapshot.docs) {
-      print("📄 DOC: ${doc.id} => ${doc.data()}");
-    }
-
-    return snapshot.docs.map((doc) {
-      try {
-        return SpotRelease.fromMap(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
-      } catch (e) {
-        print("❌ ERROR parseando doc ${doc.id}: $e");
-        rethrow;
+        query = query
+            .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end));
       }
-    }).toList();
-  } catch (e, stack) {
-    print("🔥 ERROR TOTAL EN getReservations()");
-    print(e);       // ✅ ACÁ VA A SALIR EL LINK DEL ÍNDICE
-    print(stack);   // opcional para debugging
 
-    throw Exception('No se pudieron cargar las reservaciones.');
+      final snapshot = await query.get();
+
+      _logger.i("✅ Firestore devolvió ${snapshot.docs.length} documentos");
+
+      for (var doc in snapshot.docs) {
+        _logger.i("📄 DOC: ${doc.id} => ${doc.data()}");
+      }
+
+      return snapshot.docs.map((doc) {
+        try {
+          return SpotRelease.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          );
+        } catch (e) {
+          _logger.e("ERROR parseando doc ${doc.id}", error: e);
+          rethrow;
+        }
+      }).toList();
+    } catch (e, stack) {
+      _logger.e("ERROR TOTAL EN getReservations()", error: e, stackTrace: stack);
+      
+      throw Exception('No se pudieron cargar las reservaciones.');
+    }
   }
-}
 
-
-Future<void> createRelease({
+  Future<void> createRelease({
     required String establishmentId,
     required String departmentId,
     required String parkingSpotId,
     required String spotNumber,
     required String releasedByUserId, // titular
-    required DateTime releaseDate,    // día completo
+    required DateTime releaseDate, // día completo
   }) async {
     final day = _startOfDay(releaseDate);
 

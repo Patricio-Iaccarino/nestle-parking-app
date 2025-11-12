@@ -1,13 +1,15 @@
-// lib/features/users/data/repository/users_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logger/logger.dart';
 
 class UsersRepository {
   final FirebaseFirestore _firestore;
+  final Logger _logger = Logger(); 
+
   UsersRepository(this._firestore);
 
-  // --- 🔹 MÉTODOS DE USUARIOS 🔹 ---
+  // --- MÉTODOS DE USUARIOS ---
 
   Future<AppUser> getUserProfile(String uid) async {
     final docSnap = await _firestore.collection('users').doc(uid).get();
@@ -87,8 +89,8 @@ class UsersRepository {
         establishmentName =
             establishmentDoc.data()?['name'] ?? establishmentName;
       }
-    } catch (e) {
-      print(' ❗️ ERROR buscando nombre de establecimiento: $e');
+    } catch (e, stack) {
+      _logger.e('❗️Error buscando nombre de establecimiento', error: e, stackTrace: stack);
     }
 
     await _firestore.collection('users').doc(userId).update({

@@ -1,7 +1,7 @@
-// lib/features/reservations/application/reservations_controller.dart
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:cocheras_nestle_web/features/reservations/data/repository/reservations_repository.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:logger/logger.dart';
 
 // 1. Un Estado dedicado
 class ReservationsState {
@@ -31,6 +31,7 @@ class ReservationsState {
 // 2. Un Controller dedicado
 class ReservationsController extends StateNotifier<ReservationsState> {
   final ReservationsRepository _repository;
+  final Logger _logger = Logger(); 
 
   ReservationsController(this._repository) : super(ReservationsState());
 
@@ -41,11 +42,12 @@ class ReservationsController extends StateNotifier<ReservationsState> {
       final result = await _repository.getReservations(establishmentId, date: date);
       state = state.copyWith(spotReleases: result, isLoading: false);
     } catch (e) {
+      _logger.e("Error cargando reservas", error: e);
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 
-Future<void> addRelease({
+  Future<void> addRelease({
     required String establishmentId,
     required String departmentId,
     required String parkingSpotId,
@@ -64,11 +66,10 @@ Future<void> addRelease({
         releaseDate: releaseDate,
       );
       await load(establishmentId, date: reloadDate ?? releaseDate);
-    } catch (e) {
-  print("🔥 ERROR desde addRelease:");
-  print(e);    // ✅ imprime link completo si viene desde repo
-  state = state.copyWith(error: e.toString());
-  rethrow;
+    } catch (e, stack) {
+      _logger.e("ERROR desde addRelease()", error: e, stackTrace: stack);
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -84,11 +85,10 @@ Future<void> addRelease({
         bookedByUserId: bookedByUserId,
       );
       await load(establishmentId, date: dayForReload);
-    } catch (e) {
-  print("🔥 ERROR desde reserve:");
-  print(e);
-  state = state.copyWith(error: e.toString());
-  rethrow;
+    } catch (e, stack) {
+      _logger.e("ERROR desde reserve()", error: e, stackTrace: stack);
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -100,15 +100,13 @@ Future<void> addRelease({
     try {
       await _repository.cancelReservation(releaseId: releaseId);
       await load(establishmentId, date: dayForReload);
-    } catch (e) {
-  print("🔥 ERROR desde cancel:");
-  print(e);
-  state = state.copyWith(error: e.toString());
-  rethrow;
+    } catch (e, stack) {
+      _logger.e("ERROR desde cancel()", error: e, stackTrace: stack);
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 }
-
 
 // 3. El Provider para el Controller
 final reservationsControllerProvider =

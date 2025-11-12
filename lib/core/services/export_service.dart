@@ -1,12 +1,10 @@
-// /core/services/export_service.dart
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:html' as html;
-
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 
 import '../../features/reports/domain/report_models.dart';
 
@@ -14,7 +12,7 @@ class ExportService {
   static final _df = DateFormat('yyyy-MM-dd HH:mm');
 
   /// ------------------------------------------------------------------------
-  /// Punto único de exportación para el **reporte detallado**
+  /// Punto único de exportación para el reporte detallado
   /// format: 'excel' | 'csv' | 'pdf'
   /// ------------------------------------------------------------------------
   static Future<void> exportDetailed(
@@ -31,16 +29,14 @@ class ExportService {
       case 'pdf':
         await _exportDetailedToPdf(data);
         break;
-      default:
-        // opcionalmente, podrías lanzar una excepción o ignorar
-        break;
     }
   }
 
   // ------------------------------------------------------------------------
-  // CSV
+  // CSV 
   // ------------------------------------------------------------------------
-  static Future<void> _exportDetailedToCsv(List<DetailedReportRecord> data) async {
+  static Future<void> _exportDetailedToCsv(
+      List<DetailedReportRecord> data) async {
     final rows = <List<String>>[
       ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera'],
       ...data.map((r) => [
@@ -53,64 +49,100 @@ class ExportService {
     ];
 
     final csv = const ListToCsvConverter().convert(rows);
-    _downloadUtf8(csv, filename: 'reporte_detallado.csv', mime: 'text/csv');
+
+    await Printing.sharePdf(
+      bytes: Uint8List.fromList(utf8.encode(csv)),
+      filename: "reporte_detallado.csv",
+    );
   }
 
   // ------------------------------------------------------------------------
-  // PDF
+  // PDF 
   // ------------------------------------------------------------------------
-  static Future<void> _exportDetailedToPdf(List<DetailedReportRecord> data) async {
+  static Future<void> _exportDetailedToPdf(
+      List<DetailedReportRecord> data) async {
     final pdf = pw.Document();
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        build: (_) => [
+        build: (context) => [
           pw.Text(
-            'Reporte detallado de ocupación',
+            "Reporte detallado de ocupación",
             style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 12),
-          pw.Table.fromTextArray(
-            headers: const ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera'],
-            data: data
-                .map((r) => [
-                      _df.format(r.releaseDate),
-                      r.status,
-                      r.userName ?? '-',
-                      r.departmentName ?? '-',
-                      r.spotName ?? '-',
-                    ])
-                .toList(),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            cellAlignment: pw.Alignment.centerLeft,
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                children: [
+                  for (final h in [
+                    'Fecha',
+                    'Estado',
+                    'Usuario',
+                    'Departamento',
+                    'Cochera'
+                  ])
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(4),
+                      child: pw.Text(
+                        h,
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+              ...data.map(
+                (r) => pw.TableRow(
+                  children: [
+                    _pdfCell(_df.format(r.releaseDate)),
+                    _pdfCell(r.status),
+                    _pdfCell(r.userName ?? '-'),
+                    _pdfCell(r.departmentName ?? '-'),
+                    _pdfCell(r.spotName ?? '-'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
 
     final bytes = await pdf.save();
-    _downloadBytes(bytes,
-        filename: 'reporte_detallado.pdf', mime: 'application/pdf');
+
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: "reporte_detallado.pdf",
+    );
+  }
+
+  static pw.Widget _pdfCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Text(text),
+    );
   }
 
   // ------------------------------------------------------------------------
-  // Excel (sin estilos especiales para máxima compatibilidad)
+  // EXCEL
   // ------------------------------------------------------------------------
-  static Future<void> _exportDetailedToExcel(List<DetailedReportRecord> data) async {
+  static Future<void> _exportDetailedToExcel(
+      List<DetailedReportRecord> data) async {
     final excel = Excel.createExcel();
     final sheet = excel['Reporte detallado'];
 
-    // Encabezados
     sheet.appendRow([
-       TextCellValue('Fecha'),
-       TextCellValue('Estado'),
-       TextCellValue('Usuario'),
-       TextCellValue('Departamento'),
-       TextCellValue('Cochera'),
+      TextCellValue('Fecha'),
+      TextCellValue('Estado'),
+      TextCellValue('Usuario'),
+      TextCellValue('Departamento'),
+      TextCellValue('Cochera'),
     ]);
 
-    // Filas
     for (final r in data) {
       sheet.appendRow([
         TextCellValue(_df.format(r.releaseDate)),
@@ -122,34 +154,15 @@ class ExportService {
     }
 
     final bytes = Uint8List.fromList(excel.encode()!);
-    _downloadBytes(
-      bytes,
-      filename: 'reporte_detallado.xlsx',
-      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: "reporte_detallado.xlsx",
     );
-  }
-
-  // ------------------------------------------------------------------------
-  // Descargas
-  // ------------------------------------------------------------------------
-  static void _downloadUtf8(String content,
-      {required String filename, required String mime}) {
-    final bytes = utf8.encode(content);
-    _downloadBytes(bytes, filename: filename, mime: mime);
-  }
-
-  static void _downloadBytes(List<int> bytes,
-      {required String filename, required String mime}) {
-    final blob = html.Blob([Uint8List.fromList(bytes)], mime);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.AnchorElement(href: url)
-      ..download = filename
-      ..click();
-    html.Url.revokeObjectUrl(url);
   }
 }
 
-/// Conversor CSV minimalista
+/// Conversor CSV 
 class ListToCsvConverter {
   const ListToCsvConverter();
 
@@ -158,7 +171,8 @@ class ListToCsvConverter {
   }
 
   String _escape(String v) {
-    final needsQuotes = v.contains(',') || v.contains('"') || v.contains('\n');
+    final needsQuotes =
+        v.contains(',') || v.contains('"') || v.contains('\n');
     final s = v.replaceAll('"', '""');
     return needsQuotes ? '"$s"' : s;
   }

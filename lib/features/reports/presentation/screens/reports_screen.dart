@@ -236,7 +236,7 @@ class _FiltersRowState extends ConsumerState<_FiltersRow> {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            error: (_, __) => const Text("Error deps"),
+            error: (error, stackTrace) => const Text("Error deps"),
           ),
         ],
       ),

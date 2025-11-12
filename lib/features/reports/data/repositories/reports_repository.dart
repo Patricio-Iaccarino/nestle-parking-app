@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart';
 import '../../domain/report_models.dart';
 
 class ReportsRepository {
@@ -14,6 +15,8 @@ class ReportsRepository {
   final Map<String, Map<String, dynamic>?> _userCache = {};
   final Map<String, Map<String, dynamic>?> _deptCache = {};
 
+  final Logger _logger = Logger(); 
+
   Future<List<DetailedReportRecord>> fetchDetailedDailyReport({
     required DateTime start,
     required DateTime end,
@@ -21,8 +24,8 @@ class ReportsRepository {
     required String? departmentId,
     required String? userId,
   }) async {
-    print("📌 FETCH REPORT");
-    print("   Range: $start → $end | Est: $establishmentId | Dept: $departmentId | User: $userId");
+    _logger.i("📌 FETCH REPORT");
+    _logger.i("Range: $start → $end | Est: $establishmentId | Dept: $departmentId | User: $userId");
 
     Query<Map<String, dynamic>> q = _db
         .collection(releasesCol)
@@ -30,9 +33,9 @@ class ReportsRepository {
         .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .where('establishmentId', isEqualTo: establishmentId);
 
-    // 📦 Query a Firestore
+    // Query a Firestore
     final snap = await q.get();
-    print("📦 Firestore docs encontrados: ${snap.size}");
+    _logger.i("📦 Firestore docs encontrados: ${snap.size}");
 
     List<DetailedReportRecord> results = [];
 
@@ -43,16 +46,16 @@ class ReportsRepository {
       final bookedBy = data['bookedByUserId']?.toString() ?? "";
       final releaseDept = data['departmentId']?.toString() ?? "";
 
-      // ✅ Obtener spot
+      // Obtener spot
       final spot = await _getSpot(spotId);
       final spotDeptId = spot?['departmentId']?.toString() ?? "";
 
-      // ✅ Obtener user solo si existe
+      // Obtener user solo si existe
       final user = bookedBy.isNotEmpty ? await _getUser(bookedBy) : null;
 
-      // ✅ Determinar deptId final
-      final deptId = user?['departmentId']?.toString()
-    ?? (releaseDept.isNotEmpty ? releaseDept : spotDeptId);
+      // Determinar deptId final
+      final deptId = user?['departmentId']?.toString() ??
+          (releaseDept.isNotEmpty ? releaseDept : spotDeptId);
 
       final dept = await _getDept(deptId);
 
@@ -74,7 +77,7 @@ class ReportsRepository {
       );
     }
 
-    print("✅ Filas finales: ${results.length}");
+    _logger.i("✅ Filas finales: ${results.length}");
     return results;
   }
 
@@ -82,18 +85,22 @@ class ReportsRepository {
 
   Future<List<Map<String, dynamic>>> fetchDepartments() async {
     final snap = await _db.collection(departmentsCol).get();
-    return snap.docs.map((e) => {
-      "id": e.id,
-      "name": e.data()['name'] ?? "",
-    }).toList();
+    return snap.docs
+        .map((e) => {
+              "id": e.id,
+              "name": e.data()['name'] ?? "",
+            })
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> fetchUsers() async {
     final snap = await _db.collection(usersCol).get();
-    return snap.docs.map((e) => {
-      "id": e.id,
-      "name": e.data()['displayName'] ?? "",
-    }).toList();
+    return snap.docs
+        .map((e) => {
+              "id": e.id,
+              "name": e.data()['displayName'] ?? "",
+            })
+        .toList();
   }
 
   // ------- CACHES ---------
@@ -119,14 +126,12 @@ class ReportsRepository {
     return _deptCache[id] = doc.data();
   }
 
-Future<int> countTotalSpots(String establishmentId) async {
-  final snap = await _db
-      .collection(spotsCol)
-      .where('establishmentId', isEqualTo: establishmentId)
-      .get();
+  Future<int> countTotalSpots(String establishmentId) async {
+    final snap = await _db
+        .collection(spotsCol)
+        .where('establishmentId', isEqualTo: establishmentId)
+        .get();
 
-  return snap.size;
-}
-
-
+    return snap.size;
+  }
 }

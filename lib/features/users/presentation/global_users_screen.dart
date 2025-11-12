@@ -1,6 +1,5 @@
 import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
-import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:data_table_2/data_table_2.dart';
@@ -64,7 +63,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               ref
                   .read(adminControllerProvider.notifier)
                   .loadDashboardData(establishmentId);
-              ref.read(departmentsControllerProvider.notifier).load(establishmentId);
+              ref
+                  .read(departmentsControllerProvider.notifier)
+                  .load(establishmentId);
             },
           ),
           IconButton(
@@ -92,13 +93,17 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : users.isEmpty
-                    ? Center(child: Text(error ?? 'No hay usuarios registrados.'))
+                    ? Center(
+                        child: Text(error ?? 'No hay usuarios registrados.'),
+                      )
                     : PaginatedDataTable2(
                         columns: const [
                           DataColumn2(label: Text('Nombre'), size: ColumnSize.L),
                           DataColumn2(label: Text('Email'), size: ColumnSize.L),
                           DataColumn2(label: Text('Rol'), size: ColumnSize.S),
-                          DataColumn2(label: Text('Departamento'), size: ColumnSize.M),
+                          DataColumn2(
+                              label: Text('Departamento'),
+                              size: ColumnSize.M),
                           DataColumn2(label: Text('Cochera'), size: ColumnSize.S),
                           DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
                         ],
@@ -160,12 +165,15 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                       child: const Text('Cancelar'),
                     ),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red),
                       onPressed: () async {
                         setState(() => isDeleting = true);
                         await controller.deleteUser(userId);
-                        final estId =
-                            ref.read(authControllerProvider).value?.establishmentId;
+                        final estId = ref
+                            .read(authControllerProvider)
+                            .value
+                            ?.establishmentId;
                         if (estId != null) {
                           await ref
                               .read(adminControllerProvider.notifier)
@@ -221,11 +229,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: selectedRole,
+                      initialValue: selectedRole,
                       decoration: const InputDecoration(labelText: 'Rol'),
                       items: const [
                         DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
-                        DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
+                        DropdownMenuItem(
+                            value: 'SUPLENTE', child: Text('Suplente')),
                       ],
                       onChanged: (val) =>
                           setState(() => selectedRole = val ?? 'TITULAR'),
@@ -233,9 +242,8 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     const SizedBox(height: 8),
                     if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                       DropdownButtonFormField<String>(
-                        value: selectedDepartmentId,
-                        decoration:
-                            const InputDecoration(labelText: 'Departamento'),
+                        initialValue: selectedDepartmentId,
+                        decoration: const InputDecoration(labelText: 'Departamento'),
                         items: departments
                             .map((d) => DropdownMenuItem(
                                   value: d.id,
@@ -266,8 +274,8 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                               emailController.text.trim().isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content:
-                                      Text('Complete todos los campos obligatorios')),
+                                  content: Text(
+                                      'Complete todos los campos obligatorios')),
                             );
                             return;
                           }
@@ -289,8 +297,10 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           );
 
                           await controller.createUser(newUser);
-                          final estId =
-                              ref.read(authControllerProvider).value?.establishmentId;
+                          final estId = ref
+                              .read(authControllerProvider)
+                              .value
+                              ?.establishmentId;
                           if (estId != null) {
                             await ref
                                 .read(adminControllerProvider.notifier)
@@ -344,7 +354,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     enabled: !isSaving,
                   ),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     items: const [
                       DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
                       DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),

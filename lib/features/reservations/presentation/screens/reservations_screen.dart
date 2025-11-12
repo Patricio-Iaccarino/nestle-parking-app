@@ -37,7 +37,6 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
         ref.read(usersControllerProvider.notifier)
             .loadUsersByEstablishment(establishmentId);
         ref.read(departmentsControllerProvider.notifier).load(establishmentId);
-        // para el diálogo de liberar (cocheras por depto)
         ref.read(parkingSpotsControllerProvider.notifier)
             .loadByEstablishment(establishmentId);
       }
@@ -52,24 +51,21 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     ref
         .read(reservationsControllerProvider.notifier)
         .load(establishmentId, date: _selectedDate);
-    ref
-        .read(departmentsControllerProvider.notifier)
-        .load(establishmentId);
-    ref
-        .read(usersControllerProvider.notifier)
+    ref.read(departmentsControllerProvider.notifier).load(establishmentId);
+    ref.read(usersControllerProvider.notifier)
         .loadUsersByEstablishment(establishmentId);
-    ref
-        .read(parkingSpotsControllerProvider.notifier)
+    ref.read(parkingSpotsControllerProvider.notifier)
         .loadByEstablishment(establishmentId);
   }
 
   Future<void> _pickDate() async {
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
+
     if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
       _reloadAll();
@@ -83,11 +79,12 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     final departmentState = ref.watch(departmentsControllerProvider);
     final spotsState = ref.watch(parkingSpotsControllerProvider);
 
-    final bool isLoading = reservationsState.isLoading ||
+    final isLoading = reservationsState.isLoading ||
         usersState.isLoading ||
         departmentState.isLoading ||
         spotsState.isLoading;
-    final String? error = reservationsState.error ??
+
+    final error = reservationsState.error ??
         usersState.error ??
         departmentState.error ??
         spotsState.error;
@@ -103,36 +100,35 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-  title: const Text('Supervisión de Reservas'),
-  actions: [
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          minimumSize: const Size(160, 36), // ✅ asegura área clickeable
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva Liberación'),
-        onPressed: () => _showCreateReleaseDialog(
-          context: context,
-          departments: departments,
-          allSpots: allSpots,
-          users: users,
-        ),
+        title: const Text('Supervisión de Reservas'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                minimumSize: const Size(160, 36),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva Liberación'),
+              onPressed: () => _showCreateReleaseDialog(
+                context: context,
+                departments: departments,
+                allSpots: allSpots,
+                users: users,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _reloadAll,
+          ),
+        ],
       ),
-    ),
-    IconButton(
-      icon: const Icon(Icons.refresh),
-      onPressed: _reloadAll,
-    ),
-  ],
-),
       body: Column(
         children: [
-          // Filtros
           Container(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 ElevatedButton.icon(
@@ -144,23 +140,20 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                 DropdownButton<String>(
                   value: _selectedDepartmentId,
                   hint: const Text('Filtrar por Departamento'),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedDepartmentId = newValue;
-                    });
-                  },
                   items: [
-                    const DropdownMenuItem<String>(
+                    const DropdownMenuItem(
                       value: null,
                       child: Text('Todos los Departamentos'),
                     ),
-                    ...departments.map<DropdownMenuItem<String>>((Department d) {
-                      return DropdownMenuItem<String>(
+                    ...departments.map(
+                      (d) => DropdownMenuItem(
                         value: d.id,
                         child: Text(d.name),
-                      );
-                    }),
+                      ),
+                    ),
                   ],
+                  onChanged: (value) =>
+                      setState(() => _selectedDepartmentId = value),
                 ),
                 const Spacer(),
                 IconButton(
@@ -171,7 +164,6 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
             ),
           ),
 
-          // Tabla
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -217,9 +209,9 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     );
   }
 
-  // ============================
-  // Diálogo: NUEVA LIBERACIÓN
-  // ============================
+  // ============================================================
+  // NUEVA LIBERACIÓN
+  // ============================================================
   Future<void> _showCreateReleaseDialog({
     required BuildContext context,
     required List<Department> departments,
@@ -228,7 +220,9 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   }) async {
     final establishmentId =
         ref.read(authControllerProvider).value?.establishmentId ?? '';
+
     if (establishmentId.isEmpty) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se encontró el establecimiento.')),
       );
@@ -241,54 +235,49 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     DateTime releaseDate = DateTime.now();
 
     List<ParkingSpot> spotsByDept = [];
-    List<AppUser> titularesByDept = [];
 
     Future<void> pickDay() async {
       final picked = await showDatePicker(
         context: context,
         initialDate: releaseDate,
-        firstDate: DateTime.now().subtract(const Duration(days: 0)),
-        lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 730)),
       );
       if (picked != null) releaseDate = picked;
     }
 
     await showDialog(
       context: context,
-      builder: (ctx) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setState) {
             void updateListsForDept(String? dept) {
               departmentId = dept;
               selectedSpot = null;
               selectedTitular = null;
+
               spotsByDept = (dept == null)
                   ? []
                   : allSpots.where((s) => s.departmentId == dept).toList()
-                    ..sort((a, b) => a.spotNumber.compareTo(b.spotNumber));
-              titularesByDept = (dept == null)
-                  ? []
-                  : users.where((u) => u.role == 'TITULAR' && u.departmentId == dept).toList()
-                    ..sort((a, b) => a.displayName.compareTo(b.displayName));
+                ..sort((a, b) => a.spotNumber.compareTo(b.spotNumber));
             }
 
-            // Si el spot elegido tiene titular asignado en el modelo de spot, lo preseleccionamos
             void onSpotChanged(ParkingSpot? spot) {
-  selectedSpot = spot;
+              selectedSpot = spot;
 
-  // Buscar titular REAL por assignedUserId
-  if (spot != null && spot.assignedUserId != null && spot.assignedUserId!.isNotEmpty) {
-    try {
-      selectedTitular = users.firstWhere(
-        (u) => u.id == spot.assignedUserId,
-      );
-    } catch (_) {
-      selectedTitular = null;
-    }
-  } else {
-    selectedTitular = null;
-  }
-}
+              if (spot != null &&
+                  spot.assignedUserId != null &&
+                  spot.assignedUserId!.isNotEmpty) {
+                try {
+                  selectedTitular =
+                      users.firstWhere((u) => u.id == spot.assignedUserId);
+                } catch (_) {
+                  selectedTitular = null;
+                }
+              } else {
+                selectedTitular = null;
+              }
+            }
 
             return AlertDialog(
               title: const Text('Nueva Liberación'),
@@ -297,9 +286,8 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Departamento
                     DropdownButtonFormField<String>(
-                      value: departmentId,
+                      initialValue: departmentId,
                       hint: const Text('Departamento'),
                       items: departments
                           .map((d) => DropdownMenuItem(
@@ -307,50 +295,42 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                                 child: Text(d.name),
                               ))
                           .toList(),
-                      onChanged: (val) => setState(() {
-                        updateListsForDept(val);
-                      }),
+                      onChanged: (val) => setState(() => updateListsForDept(val)),
                     ),
                     const SizedBox(height: 8),
 
-                    // Cochera por departamento
                     DropdownButtonFormField<ParkingSpot>(
-                      value: selectedSpot,
+                      initialValue: selectedSpot,
                       hint: const Text('Cochera'),
                       items: spotsByDept
                           .map((s) => DropdownMenuItem(
                                 value: s,
-                                child: Text('${s.spotNumber} · Piso ${s.floor} · ${s.type}'),
+                                child: Text(
+                                  '${s.spotNumber} · Piso ${s.floor} · ${s.type}',
+                                ),
                               ))
                           .toList(),
                       onChanged: (val) => setState(() => onSpotChanged(val)),
                     ),
+
                     const SizedBox(height: 8),
 
-                    // Titular (si el spot no tiene assignedUserId, permitimos elegir)
                     DropdownButtonFormField<AppUser>(
-  value: selectedTitular,
-  hint: const Text('Titular que libera'),
-  items: [
-    if (selectedSpot != null && selectedSpot!.assignedUserId != null)
-      DropdownMenuItem(
-        value: selectedTitular,
-        child: Text(
-          selectedTitular?.displayName ?? '(Titular no encontrado)',
-        ),
-      )
-    else
-      const DropdownMenuItem(
-        value: null,
-        child: Text('(Cochera sin titular asignado)'),
-      ),
-  ],
-  onChanged: null, // 🔒 NO PERMITIMOS CAMBIARLO MANUALMENTE
-),
-
+                      initialValue: selectedTitular,
+                      hint: const Text('Titular que libera'),
+                      items: [
+                        DropdownMenuItem(
+                          value: selectedTitular,
+                          child: Text(
+                            selectedTitular?.displayName ??
+                                '(Cochera sin titular asignado)',
+                          ),
+                        )
+                      ],
+                      onChanged: null,
+                    ),
                     const SizedBox(height: 8),
 
-                    // Fecha
                     Row(
                       children: [
                         Expanded(
@@ -379,20 +359,31 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     if (departmentId == null || selectedSpot == null) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Completá departamento y cochera.')),
+                        const SnackBar(
+                          content:
+                              Text('Completá departamento y cochera.'),
+                        ),
                       );
                       return;
                     }
+
                     if (selectedTitular == null) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Seleccioná el titular que libera.')),
+                        const SnackBar(
+                          content:
+                              Text('Seleccioná el titular que libera.'),
+                        ),
                       );
                       return;
                     }
 
                     try {
-                      await ref.read(reservationsControllerProvider.notifier).addRelease(
+                      await ref
+                          .read(reservationsControllerProvider.notifier)
+                          .addRelease(
                             establishmentId: establishmentId,
                             departmentId: departmentId!,
                             parkingSpotId: selectedSpot!.id,
@@ -401,10 +392,16 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                             releaseDate: releaseDate,
                             reloadDate: _selectedDate,
                           );
-                      if (context.mounted) Navigator.pop(ctx);
+
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
                     } catch (e) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                        SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: Colors.red,
+                        ),
                       );
                     }
                   },
@@ -418,9 +415,9 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     );
   }
 
-  // ============================
-  // Diálogo: RESERVAR (AVAILABLE)
-  // ============================
+  // ============================================================
+  // RESERVAR
+  // ============================================================
   Future<void> _showReserveDialog(
     BuildContext context,
     String releaseId,
@@ -429,9 +426,9 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   ) async {
     final establishmentId =
         ref.read(authControllerProvider).value?.establishmentId ?? '';
+
     if (establishmentId.isEmpty) return;
 
-    // Solo SUPLENTES del mismo departamento
     final suplentes = users
         .where((u) => u.role == 'SUPLENTE' && u.departmentId == departmentId)
         .toList()
@@ -447,7 +444,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
           content: SizedBox(
             width: 360,
             child: DropdownButtonFormField<AppUser>(
-              value: selectedSuplente,
+              initialValue: selectedSuplente,
               hint: const Text('Seleccionar suplente'),
               items: suplentes
                   .map((u) => DropdownMenuItem(
@@ -466,22 +463,32 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (selectedSuplente == null) {
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Seleccioná un suplente.')),
                   );
                   return;
                 }
+
                 try {
-                  await ref.read(reservationsControllerProvider.notifier).reserve(
+                  await ref
+                      .read(reservationsControllerProvider.notifier)
+                      .reserve(
                         establishmentId: establishmentId,
                         releaseId: releaseId,
                         bookedByUserId: selectedSuplente!.id,
                         dayForReload: _selectedDate,
                       );
-                  if (context.mounted) Navigator.pop(ctx);
+
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
                 } catch (e) {
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text(e.toString()),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               },
@@ -493,12 +500,13 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     );
   }
 
-  // ============================
-  // Confirmación: CANCELAR (BOOKED)
-  // ============================
+  // ============================================================
+  // CANCELAR RESERVA
+  // ============================================================
   Future<void> _confirmCancel(BuildContext context, String releaseId) async {
     final establishmentId =
         ref.read(authControllerProvider).value?.establishmentId ?? '';
+
     if (establishmentId.isEmpty) return;
 
     final ok = await showDialog<bool>(
@@ -521,14 +529,20 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
 
     if (ok == true) {
       try {
-        await ref.read(reservationsControllerProvider.notifier).cancel(
+        await ref
+            .read(reservationsControllerProvider.notifier)
+            .cancel(
               establishmentId: establishmentId,
               releaseId: releaseId,
               dayForReload: _selectedDate,
             );
       } catch (e) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -586,32 +600,36 @@ class _ReservationsDataSource extends DataTableSource {
                 isBooked ? Colors.orange.shade100 : Colors.green.shade100,
           ),
         ),
-        DataCell(Text(_getUserName(r.releasedByUserId))), // titular
-        DataCell(Text(_getUserName(r.bookedByUserId))),   // suplente (si hay)
-        DataCell(Row(
-          children: [
-            if (isAvailable)
-              IconButton(
-                tooltip: 'Reservar',
-                icon: const Icon(Icons.event_available),
-                onPressed: () => onReserve(r.id, r.departmentId),
-              ),
-            if (isBooked)
-              IconButton(
-                tooltip: 'Cancelar reserva',
-                icon: const Icon(Icons.cancel),
-                onPressed: () => onCancel(r.id),
-              ),
-          ],
-        )),
+        DataCell(Text(_getUserName(r.releasedByUserId))),
+        DataCell(Text(_getUserName(r.bookedByUserId))),
+        DataCell(
+          Row(
+            children: [
+              if (isAvailable)
+                IconButton(
+                  tooltip: 'Reservar',
+                  icon: const Icon(Icons.event_available),
+                  onPressed: () => onReserve(r.id, r.departmentId),
+                ),
+              if (isBooked)
+                IconButton(
+                  tooltip: 'Cancelar reserva',
+                  icon: const Icon(Icons.cancel),
+                  onPressed: () => onCancel(r.id),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
   @override
   int get rowCount => releases.length;
+
   @override
   bool get isRowCountApproximate => false;
+
   @override
   int get selectedRowCount => 0;
 }

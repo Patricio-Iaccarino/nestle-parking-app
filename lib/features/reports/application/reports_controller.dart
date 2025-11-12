@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import '../domain/report_models.dart';
 import '../data/repositories/reports_repository.dart';
 
-// ✅ auth provider
+// auth provider
 import '../../../features/auth/presentation/auth_controller.dart';
 
 /// ─────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ class ReportsState {
   final int totalSpots;
   final int totalLiberated;
   final int totalBooked;
-  final int occupancyPercent; // ✅ Nuevo KPI Correcto
+  final int occupancyPercent;
 
   const ReportsState({
     required this.loading,
@@ -83,6 +84,7 @@ final reportsControllerProvider =
 
 class ReportsController extends Notifier<ReportsState> {
   late ReportsRepository _repo;
+  final Logger _logger = Logger(); 
 
   @override
   ReportsState build() {
@@ -92,7 +94,7 @@ class ReportsController extends Notifier<ReportsState> {
     final user = authState.value;
 
     final adminEstId = user?.establishmentId;
-    print("📌 Establecimiento para reportes: $adminEstId");
+    _logger.i("📌 Establecimiento para reportes: $adminEstId");
 
     final today = DateTime.now();
     final initRange = DateRange(
@@ -129,7 +131,6 @@ class ReportsController extends Notifier<ReportsState> {
   /// Filtros
   void setUserFilter(String? userId) {
     final f = state.filter;
-
     final newFilter = ReportsFilter(
       range: f.range,
       establishmentId: f.establishmentId,
@@ -143,7 +144,6 @@ class ReportsController extends Notifier<ReportsState> {
 
   void setDeptFilter(String? deptId) {
     final f = state.filter;
-
     final newFilter = ReportsFilter(
       range: f.range,
       establishmentId: f.establishmentId,
@@ -164,7 +164,7 @@ class ReportsController extends Notifier<ReportsState> {
     try {
       final f = state.filter;
 
-      // ✅ 1. Obtener registros detallados
+      // 1. Obtener registros detallados
       final data = await _repo.fetchDetailedDailyReport(
         start: f.range.start,
         end: f.range.end,
@@ -173,32 +173,30 @@ class ReportsController extends Notifier<ReportsState> {
         userId: f.userId,
       );
 
-      // ✅ 2. KPIs de cantidad
+      // 2. KPIs de cantidad
       final totalBooked = data.where((e) => e.status == "BOOKED").length;
       final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
 
-      // ✅ 3. Cocheras totales del establecimiento
+      // 3. Cocheras totales
       final totalSpots = await _repo.countTotalSpots(f.establishmentId!);
 
-      // ✅ 4. Cálculo profesional de días-cochera
+      // 4. Cálculo de ocupación
       final start = f.range.start;
       final end = f.range.end;
-
       final daysInRange = end.difference(start).inDays + 1;
-
       final totalCarDays = daysInRange * totalSpots;
-
       final occupiedCarDays = totalCarDays - totalLiberated;
 
-      final occupancyPercent = 
+      final occupancyPercent =
           totalCarDays == 0 ? 0 : ((occupiedCarDays / totalCarDays) * 100).round();
 
-      print("✅ Reporte cargado: ${data.length} filas");
-      print("📊 Días en rango: $daysInRange");
-      print("📊 Total spots: $totalSpots");
-      print("📊 Días-cochera totales: $totalCarDays");
-      print("📊 Liberaciones: $totalLiberated");
-      print("📊 Ocupación %: $occupancyPercent");
+      // Logs informativos
+      _logger.i("✅ Reporte cargado: ${data.length} filas");
+      _logger.i("📊 Días en rango: $daysInRange");
+      _logger.i("📊 Total spots: $totalSpots");
+      _logger.i("📊 Días-cochera totales: $totalCarDays");
+      _logger.i("📊 Liberaciones: $totalLiberated");
+      _logger.i("📊 Ocupación %: $occupancyPercent");
 
       state = state.copyWith(
         loading: false,
@@ -208,9 +206,8 @@ class ReportsController extends Notifier<ReportsState> {
         totalLiberated: totalLiberated,
         occupancyPercent: occupancyPercent,
       );
-
     } catch (e, st) {
-      print("❌ Error reporte: $e\n$st");
+      _logger.e("❌ Error reporte", error: e, stackTrace: st);
       state = state.copyWith(loading: false, error: e.toString());
     }
   }

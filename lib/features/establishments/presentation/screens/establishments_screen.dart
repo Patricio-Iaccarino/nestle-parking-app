@@ -408,23 +408,35 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     addressController.text = suggestion['formatted'] ?? '';
                     selectedProperties = suggestion;
                   },
-                  builder: (context, controller, focusNode) => TextFormField(
-                    controller: addressController,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      labelText: 'Dirección',
-                      prefixIcon: Icon(Icons.location_on),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return 'Seleccione una dirección válida';
-                      }
-                      if (selectedProperties == null && v.isNotEmpty) {
-                        return 'Seleccione una dirección de la lista';
-                      }
-                      return null;
-                    },
-                  ),
+                  builder: (context, textController, focusNode) {
+                    // Sincronizamos el interno con el externo
+                    textController.text = addressController.text;
+                    textController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: textController.text.length),
+                    );
+
+                    textController.addListener(() {
+                      addressController.text = textController.text;
+                    });
+
+                    return TextFormField(
+                      controller: textController, // ✅ usamos el del paquete
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Dirección',
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Seleccione una dirección válida';
+                        }
+                        if (selectedProperties == null) {
+                          return 'Seleccione una dirección de la lista';
+                        }
+                        return null;
+                      },
+                    );
+                  },
                   // --- 👇 AÑADIMOS ESTE WIDGET PARA TRADUCIR "No items found" 👇 ---
                   emptyBuilder: (context) {
                     return const Padding(

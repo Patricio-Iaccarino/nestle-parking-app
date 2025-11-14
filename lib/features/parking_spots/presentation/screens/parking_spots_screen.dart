@@ -1,11 +1,11 @@
 import 'package:cocheras_nestle_web/features/departments/application/departments_controller.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para filtrar números
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:go_router/go_router.dart';
 
@@ -26,21 +26,19 @@ class ParkingSpotsScreen extends ConsumerStatefulWidget {
 }
 
 class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
-  // --- 👇 Añadimos 'helper' para manejar el estado del diálogo de Asignar ---
-  // (El de "Agregar" usará StatefulBuilder)
   final _assignDialogState = ValueNotifier<bool>(false);
 
   @override
   void initState() {
     super.initState();
-    // --- Cargamos los 3 providers necesarios ---
     Future.microtask(() {
       // 1. Carga las cocheras de este depto
       ref
           .read(parkingSpotsControllerProvider.notifier)
           .load(widget.departmentId);
-      // 2. Carga los usuarios de este depto
-      ref.read(adminControllerProvider.notifier).loadUsers(widget.departmentId);
+      ref
+          .read(usersControllerProvider.notifier)
+          .loadUsersByDepartment(widget.departmentId);
       // 3. Carga los deptos (para encontrar el nombre del depto actual)
       ref
           .read(departmentsControllerProvider.notifier)
@@ -50,25 +48,21 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
 
   @override
   void dispose() {
-    _assignDialogState.dispose(); // Limpiamos el notifier
+    _assignDialogState.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- Miramos los TRES providers ---
     final spotsState = ref.watch(parkingSpotsControllerProvider);
     final spotsController = ref.read(parkingSpotsControllerProvider.notifier);
-
-    final adminState = ref.watch(adminControllerProvider);
+    final usersState = ref.watch(usersControllerProvider);
     final deptsState = ref.watch(departmentsControllerProvider);
-    // ------------------------------------------
 
-    // Combinamos los estados de carga y error
     final bool isLoading =
-        spotsState.isLoading || adminState.isLoading || deptsState.isLoading;
+        spotsState.isLoading || usersState.isLoading || deptsState.isLoading; //
     final String? error =
-        spotsState.error ?? adminState.error ?? deptsState.error;
+        spotsState.error ?? usersState.error ?? deptsState.error; //
 
     // Lógica para encontrar el nombre (ahora usa deptsState)
     String departmentName = 'Cocheras';
@@ -95,14 +89,13 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              // --- 👇 ARREGLO AQUÍ 👇 ---
               ref
                   .read(parkingSpotsControllerProvider.notifier)
                   .load(widget.departmentId);
               ref
-                  .read(adminControllerProvider.notifier)
-                  .loadUsers(widget.departmentId);
-              // Reemplaza 'invalidate' con una llamada a 'load'
+                  .read(usersControllerProvider.notifier)
+                  .loadUsersByDepartment(widget.departmentId);
+
               ref
                   .read(departmentsControllerProvider.notifier)
                   .load(widget.establishmentId);
@@ -142,7 +135,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                 wrapInCard: false,
                 source: _ParkingSpotsDataSource(
                   parkingSpots: spotsState.parkingSpots,
-                  users: adminState.users,
+                  users: usersState.users,
                   controller: spotsController,
                   context: context,
                   dialogState:
@@ -313,14 +306,13 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     }
   }
 
-  // --- 👇 DIÁLOGO AGREGAR COCHERA (ACTUALIZADO CON VALIDACIÓN) 👇 ---
   Future<void> _showQuickAddSpotDialog(
     BuildContext context,
     ParkingSpotsController controller,
     String departmentId,
     String establishmentId,
   ) async {
-    // --- CAMBIO 1: Añadir FormKey y estado de carga ---
+    
     final formKey = GlobalKey<FormState>();
     final spotNumberController = TextEditingController();
     final floorController = TextEditingController();
@@ -331,7 +323,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       context: context,
       barrierDismissible: !isSaving,
       builder: (context) {
-        // --- CAMBIO 2: Añadir StatefulBuilder para el spinner ---
+        
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(

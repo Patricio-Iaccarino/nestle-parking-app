@@ -2,9 +2,12 @@ import 'package:cocheras_nestle_web/features/departments/application/departments
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:data_table_2/data_table_2.dart';
-import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
+
+
 
 class DepartmentsScreen extends ConsumerStatefulWidget {
   final String establishmentId;
@@ -18,25 +21,45 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   @override
   void initState() {
     super.initState();
+    // --- 👇 CAMBIO 2: El initState ahora carga los 3 providers de datos ---
     Future.microtask(() {
+      // 1. Carga los departamentos
       ref
           .read(departmentsControllerProvider.notifier)
           .load(widget.establishmentId);
+      // 2. Carga los usuarios (para el conteo)
       ref
-          .read(adminControllerProvider.notifier)
-          .loadDashboardData(widget.establishmentId);
+          .read(usersControllerProvider.notifier)
+          .loadUsersByEstablishment(widget.establishmentId);
+      // 3. Carga las cocheras (para el conteo)
+      ref
+          .read(parkingSpotsControllerProvider.notifier)
+          .loadByEstablishment(widget.establishmentId);
+      
+      // (Ya NO llamamos a adminController.loadDashboardData)
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // --- 👇 CAMBIO 3: Miramos los 3 providers ---
     final departmentState = ref.watch(departmentsControllerProvider);
     final departmentsController = ref.read(
       departmentsControllerProvider.notifier,
     );
-    final adminState = ref.watch(adminControllerProvider);
+    // (Leemos los nuevos providers para los conteos)
+    final usersState = ref.watch(usersControllerProvider);
+    final parkingSpotsState = ref.watch(parkingSpotsControllerProvider);
+    // -------------------------------------
 
-    final bool isLoading = departmentState.isLoading || adminState.isLoading;
+    // El estado de carga depende de los TRES
+    final bool isLoading = departmentState.isLoading || 
+                           usersState.isLoading || 
+                           parkingSpotsState.isLoading;
+                           
+    final String? error = departmentState.error ?? 
+                          usersState.error ?? 
+                          parkingSpotsState.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -44,13 +67,17 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            // --- 👇 CAMBIO 4: Refrescamos los TRES ---
             onPressed: () {
               ref
                   .read(departmentsControllerProvider.notifier)
                   .load(widget.establishmentId);
               ref
-                  .read(adminControllerProvider.notifier)
-                  .loadDashboardData(widget.establishmentId);
+                  .read(usersControllerProvider.notifier)
+                  .loadUsersByEstablishment(widget.establishmentId);
+              ref
+                  .read(parkingSpotsControllerProvider.notifier)
+                  .loadByEstablishment(widget.establishmentId);
             },
           ),
           IconButton(
@@ -66,9 +93,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
               child: DataTable2(
                 empty: Center(
                   child: Text(
-                    departmentState.error ??
-                        adminState.error ??
-                        'No hay departamentos registrados.',
+                    error ?? 'No hay departamentos registrados.',
                   ),
                 ),
                 minWidth: 700,
@@ -80,11 +105,13 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                   DataColumn2(label: Text('Usuarios'), size: ColumnSize.S),
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.L),
                 ],
+                // --- 👇 CAMBIO 5: Usamos las nuevas listas para los conteos ---
                 rows: departmentState.departments.map((dept) {
-                  final spotsInDept = adminState.parkingSpots
+                  final spotsInDept = parkingSpotsState.parkingSpots
                       .where((s) => s.departmentId == dept.id)
                       .length;
-                  final usersInDept = adminState.users
+
+                  final usersInDept = usersState.users
                       .where((u) => u.departmentId == dept.id)
                       .length;
 
@@ -102,6 +129,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               tooltip: 'Gestionar Usuarios',
                               onPressed: () {
                                 context.push(
+                                  // (Esta ruta funciona gracias a la lógica del AppLayout que arreglamos)
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
                                 );
                               },
@@ -112,7 +140,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               tooltip: 'Ver Cocheras',
                               onPressed: () {
                                 context.push(
-                                  '/establishments/${widget.establishmentId}/departments/${dept.id}/spots',
+                                  '/establishments/${widget.establishmentId}/departments/${dept.id}/spots?departmentName=${Uri.encodeComponent(dept.name)}',
                                 );
                               },
                             ),
@@ -146,12 +174,13 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  // --- 👇 CÓDIGO ACTUALIZADO CON VALIDACIÓN 👇 ---
+  // --- (Los diálogos ya estaban bien, solo usan DepartmentsController) ---
+  // --- (Y ya tienen la validación de formulario que hicimos) ---
+
   Future<void> _showAddDialog(
     BuildContext context,
     DepartmentsController controller,
   ) async {
-    // --- CAMBIO 1: Clave del Formulario ---
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
@@ -160,17 +189,14 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Nuevo Departamento'),
-        // --- CAMBIO 2: Envolver en un Form ---
         content: Form(
           key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // --- CAMBIO 3: Cambiar a TextFormField ---
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(labelText: 'Nombre'),
-                // --- CAMBIO 4: Añadir validador ---
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'El nombre no puede estar vacío';
@@ -182,7 +208,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
               TextFormField(
                 controller: descriptionController,
                 decoration: const InputDecoration(labelText: 'Descripción'),
-                // (La descripción puede ser opcional, así que no añadimos validador)
               ),
             ],
           ),
@@ -194,7 +219,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // --- CAMBIO 5: Validar antes de guardar ---
               if (formKey.currentState?.validate() ?? false) {
                 final newDept = Department(
                   id: '',
@@ -214,13 +238,11 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  // --- 👇 CÓDIGO ACTUALIZADO CON VALIDACIÓN 👇 ---
   Future<void> _showEditDialog(
     BuildContext context,
     DepartmentsController controller,
     Department dept,
   ) async {
-    // --- CAMBIO 1: Clave del Formulario ---
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: dept.name);
     final descriptionController =
@@ -230,17 +252,14 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Editar Departamento'),
-        // --- CAMBIO 2: Envolver en un Form ---
         content: Form(
           key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // --- CAMBIO 3: Cambiar a TextFormField ---
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(labelText: 'Nombre'),
-                // --- CAMBIO 4: Añadir validador ---
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'El nombre no puede estar vacío';
@@ -263,7 +282,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // --- CAMBIO 5: Validar antes de guardar ---
               if (formKey.currentState?.validate() ?? false) {
                 final updatedDept = dept.copyWith(
                   name: nameController.text.trim(),

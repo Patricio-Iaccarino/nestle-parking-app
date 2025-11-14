@@ -63,6 +63,17 @@ class UsersController extends StateNotifier<UsersState> {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
+
+  Future<void> loadAdmins() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      // (Este método 'getAdminUsers' ya lo habíamos creado en el UsersRepository)
+      final result = await _usersRepository.getAdminUsers();
+      state = state.copyWith(users: result, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
 }
 
 // 3. El Provider para el Controller

@@ -2,12 +2,17 @@ import 'package:cocheras_nestle_web/features/departments/application/departments
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
+// (Ya no necesitamos el admin_controller_provider para leer el estado)
+// import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:cocheras_nestle_web/features/reservations/application/reservations_controller.dart';
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
+
+// --- 👇 Importamos el ParkingSpotsController ---
+import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
+import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -21,7 +26,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: El initState ahora carga TODOS los providers ---
+    // --- 👇 El initState ahora carga los 4 providers de datos ---
     Future.microtask(() {
       final establishmentId = ref
           .read(authControllerProvider)
@@ -29,14 +34,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ?.establishmentId;
 
       if (establishmentId != null) {
-        // 1. Carga datos del Admin (SOLO parkingSpots)
-        ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId);
-        // 2. Carga las reservaciones (NUEVO)
+        // 1. Carga las reservaciones
         ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
-        // 3. Carga los usuarios (NUEVO)
+        // 2. Carga los usuarios
         ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
-        // 4. Carga los departamentos (NUEVO)
+        // 3. Carga los departamentos
         ref.read(departmentsControllerProvider.notifier).load(establishmentId);
+        // 4. Carga las cocheras (NUEVO)
+        ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId);
+        
+        // (Ya NO llamamos a adminController.loadDashboardData)
       }
     });
   }
@@ -47,38 +54,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .value
         ?.establishmentId;
     if (establishmentId != null) {
-      // --- 👇 CAMBIO 3: Refresca TODOS los providers ---
-      ref.read(adminControllerProvider.notifier).loadDashboardData(establishmentId);
+      // --- 👇 Refresca los 4 providers de datos ---
       ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
       ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
+      ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId); // <-- NUEVO
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 4: Miramos TODOS los providers ---
-    final adminState = ref.watch(adminControllerProvider);
+    // --- 👇 Miramos los 4 providers de datos ---
     final reservationsState = ref.watch(reservationsControllerProvider);
     final usersState = ref.watch(usersControllerProvider);
     final departmentState = ref.watch(departmentsControllerProvider);
+    final parkingSpotsState = ref.watch(parkingSpotsControllerProvider); // <-- NUEVO
     final theme = Theme.of(context);
 
     // Combinamos todos los estados de carga
-    final bool isLoading = adminState.isLoading || 
-                           reservationsState.isLoading || 
+    final bool isLoading = reservationsState.isLoading || 
                            usersState.isLoading || 
-                           departmentState.isLoading;
+                           departmentState.isLoading ||
+                           parkingSpotsState.isLoading; // <-- NUEVO
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // --- 👇 CAMBIO 5: Leemos los datos de sus providers correctos ---
-    final totalSpots = adminState.parkingSpots.length; // Sigue en AdminState
-    final releasesToday = reservationsState.spotReleases; // <-- NUEVO
-    final departments = departmentState.departments; // <-- NUEVO
-    final users = usersState.users; // <-- NUEVO
+    // --- 👇 Leemos los datos de sus providers correctos ---
+    final parkingSpots = parkingSpotsState.parkingSpots; // <-- NUEVO
+    final totalSpots = parkingSpots.length;
+    
+    final releasesToday = reservationsState.spotReleases;
+    final departments = departmentState.departments;
+    final users = usersState.users;
     
     // Lógica de KPIs (ahora usa 'releasesToday')
     final availableToday = releasesToday
@@ -106,7 +115,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. SECCIÓN DE KPIs (Sin cambios) ---
+            // --- 1. SECCIÓN DE KPIs ---
             Wrap(
               spacing: 20,
               runSpacing: 20,
@@ -150,22 +159,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 Expanded(
                   flex: 2,
-                  // --- 👇 CAMBIO 6: Pasamos los datos correctos ---
+                  // --- 👇 Pasamos la lista de parkingSpots correcta ---
                   child: _buildDepartmentSummary(
                     context, 
-                    departments, // <-- NUEVO
-                    adminState,  // (para parkingSpots)
-                    releasesToday, // <-- NUEVO
+                    departments,
+                    parkingSpots, // <-- NUEVO
+                    releasesToday,
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   flex: 3, 
-                  // --- 👇 CAMBIO 7: Pasamos los datos correctos ---
                   child: _buildRecentActivity(
                     context, 
-                    releasesToday, // <-- NUEVO
-                    users,         // <-- NUEVO
+                    releasesToday,
+                    users,
                   )
                 ),
               ],
@@ -185,7 +193,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required String value,
     required Color color,
   }) {
-    // ... (Este widget no tiene cambios)
     final textTheme = Theme.of(context).textTheme;
     return Card(
       elevation: 2,
@@ -221,10 +228,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  // --- 👇 Actualizamos la firma del widget ---
   Widget _buildDepartmentSummary(
     BuildContext context, 
     List<Department> departments,
-    AdminState adminState, // (para .parkingSpots)
+    List<ParkingSpot> parkingSpots, // <-- CAMBIADO
     List<SpotRelease> releasesToday,
   ) {
     return Card(
@@ -246,12 +254,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 DataColumn(label: Text('Ocupadas')),
                 DataColumn(label: Text('Disponibles')),
               ],
-              rows: departments.map((dept) { // <-- Usa la lista nueva
-                // Lógica para calcular métricas por depto
-                final spotsInDept = adminState.parkingSpots.where(
+              rows: departments.map((dept) {
+                // --- Lógica usa la lista 'parkingSpots' del parámetro ---
+                final spotsInDept = parkingSpots.where(
                   (s) => s.departmentId == dept.id,
                 );
-                final releasesInDept = releasesToday.where( // <-- Usa la lista nueva
+                final releasesInDept = releasesToday.where(
                   (r) => r.departmentId == dept.id,
                 );
                 final bookedInDept = releasesInDept
@@ -279,15 +287,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // --- 👇 CAMBIO 7 (continuación): Actualizamos la firma ---
   Widget _buildRecentActivity(
     BuildContext context, 
-    List<SpotRelease> spotReleases, // <-- NUEVO
-    List<AppUser> users,            // <-- NUEVO
+    List<SpotRelease> spotReleases,
+    List<AppUser> users,
   ) {
     String getUserName(String? userId) {
       if (userId == null) return '';
-      return users // <-- Usa la lista nueva
+      return users
           .firstWhere((u) => u.id == userId, orElse: () => AppUser.empty())
           .displayName;
     }
@@ -305,7 +312,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            if (spotReleases.isEmpty) // <-- Usa la lista nueva
+            if (spotReleases.isEmpty)
               const Center(
                 child: Text('No hay actividad registrada para hoy.'),
               ),

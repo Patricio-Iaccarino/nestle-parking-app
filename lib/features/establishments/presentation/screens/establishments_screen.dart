@@ -1,14 +1,14 @@
-import 'dart:convert'; // Necesario para json.decode
+import 'dart:convert';
+import 'package:cocheras_nestle_web/features/admin/application/admin_users_controller.dart';
 import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:cocheras_nestle_web/features/admin/presentation/screen/assign_Admin_screen.dart';
-import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:http/http.dart' as http; // Necesario para las llamadas a la API
+import 'package:http/http.dart' as http;
 
 class EstablishmentsScreen extends ConsumerStatefulWidget {
   const EstablishmentsScreen({super.key});
@@ -22,16 +22,21 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   @override
   void initState() {
     super.initState();
+    // --- 👇 CAMBIO 2: Llamamos al NUEVO controller ---
     Future.microtask(() {
-      ref.read(adminControllerProvider.notifier).loadInitialData();
+      // (El 'establishmentsControllerProvider' se carga solo)
+      // (Ya NO llamamos a adminController.loadInitialData())
+      ref.read(adminUsersControllerProvider.notifier).load();
     });
   }
 
-  String _getAdminName(List<AppUser> allUsers, String establishmentId) {
+  // --- 👇 CAMBIO 3: _getAdminName ahora recibe la lista de *Admins* ---
+  String _getAdminName(List<AppUser> adminUsers, String establishmentId) {
     try {
-      final admin = allUsers.firstWhere(
+      final admin = adminUsers.firstWhere(
         (user) =>
-            user.role == 'admin' && user.establishmentId == establishmentId,
+            // (Ya no es necesario filtrar por 'role', la lista solo tiene admins)
+            user.establishmentId == establishmentId,
       );
       return admin.displayName;
     } catch (e) {
@@ -41,24 +46,31 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // --- 👇 CAMBIO 4: Miramos los providers correctos ---
     final establishmentState = ref.watch(establishmentsControllerProvider);
     final establishmentsController = ref.read(
       establishmentsControllerProvider.notifier,
     );
 
-    final adminState = ref.watch(adminControllerProvider);
-    final List<AppUser> allUsers = adminState.users;
+    // (Leemos el NUEVO provider para la lista de admins)
+    final adminUsersState = ref.watch(adminUsersControllerProvider);
+    final List<AppUser> allAdmins = adminUsersState.adminUsers;
+    // --------------------------------------------------
 
-    final bool isLoading = establishmentState.isLoading || adminState.isLoading;
+    final bool isLoading =
+        establishmentState.isLoading || adminUsersState.isLoading;
+    final String? error = establishmentState.error ?? adminUsersState.error;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Establecimientos Nestlé'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            // --- 👇 CAMBIO 5: Refrescamos los providers correctos ---
             onPressed: () {
               ref.invalidate(establishmentsControllerProvider);
-              ref.read(adminControllerProvider.notifier).loadInitialData();
+              ref.read(adminUsersControllerProvider.notifier).load();
             },
           ),
           IconButton(
@@ -73,11 +85,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
               padding: const EdgeInsets.all(24),
               child: DataTable2(
                 empty: Center(
-                  child: Text(
-                    establishmentState.error ??
-                        adminState.error ??
-                        'No hay establecimientos registrados.',
-                  ),
+                  child: Text(error ?? 'No hay establecimientos registrados.'),
                 ),
                 minWidth: 700,
                 columns: const [
@@ -88,8 +96,8 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.M),
                 ],
                 rows: establishmentState.establishments.map((e) {
-                  // --- 👇 USAMOS LA NUEVA FUNCIÓN SEGURA 👇 ---
-                  final adminName = _getAdminName(allUsers, e.id);
+                  // --- 👇 CAMBIO 6: Pasamos la lista de Admins ---
+                  final adminName = _getAdminName(allAdmins, e.id);
 
                   return DataRow(
                     cells: [
@@ -191,24 +199,24 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                         final data = json.decode(response.body);
                         final features = data['features'] as List?;
                         if (features == null || features.isEmpty) {
-                          debugPrint(
+                          (
                             'Geoapify OK (200), pero no se encontraron features.',
                           );
                           return [];
                         }
 
-                        debugPrint(
+                        (
                           'Geoapify OK (200): Encontró ${features.length} features.',
                         );
                         return features
                             .map((f) => f['properties'] as Map<String, dynamic>)
                             .toList();
                       } else {
-                        debugPrint('Geoapify error: ${response.statusCode}');
+                        ('Geoapify error: ${response.statusCode}');
                         return [];
                       }
                     } catch (e) {
-                      debugPrint('Geoapify exception: $e');
+                      ('Geoapify exception: $e');
                       return [];
                     }
                   },
@@ -308,7 +316,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
     );
   }
 
-  // --- 👇 CÓDIGO CON MÁS PRINTS DE DEPURACIÓN 👇 ---
   Future<void> _showEditDialog(
     BuildContext context,
     EstablishmentsController controller,
@@ -350,17 +357,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 const SizedBox(height: 12),
                 TypeAheadField<Map<String, dynamic>>(
                   suggestionsCallback: (pattern) async {
-                    // --- 👇 AÑADIMOS PRINTS AQUÍ 👇 ---
-                    debugPrint('--- suggestionsCallback (EDIT) INICIADO ---');
-                    debugPrint('Pattern: "$pattern"');
-
-                    if (pattern.length < 3) {
-                      debugPrint(
-                        'Pattern demasiado corto, devolviendo lista vacía.',
-                      );
-                      return [];
-                    }
-
                     final geoapifyUrl =
                         'https://api.geoapify.com/v1/geocode/autocomplete'
                         '?text=${Uri.encodeComponent(pattern)}'
@@ -377,24 +373,24 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                         final data = json.decode(response.body);
                         final features = data['features'] as List?;
                         if (features == null || features.isEmpty) {
-                          debugPrint(
+                          (
                             'Geoapify OK (200), pero no se encontraron features.',
                           );
                           return [];
                         }
 
-                        debugPrint(
+                        (
                           'Geoapify OK (200): Encontró ${features.length} features.',
                         );
                         return features
                             .map((f) => f['properties'] as Map<String, dynamic>)
                             .toList();
                       } else {
-                        debugPrint('Geoapify error: ${response.statusCode}');
+                        ('Geoapify error: ${response.statusCode}');
                         return [];
                       }
                     } catch (e) {
-                      debugPrint('Geoapify exception: $e');
+                      ('Geoapify exception: $e');
                       return [];
                     }
                   },

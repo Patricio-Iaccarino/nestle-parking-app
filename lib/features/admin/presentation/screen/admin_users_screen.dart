@@ -6,6 +6,9 @@ import 'package:cocheras_nestle_web/features/establishments/domain/models/establ
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:data_table_2/data_table_2.dart';
 
+// --- 👇 CAMBIO 1: Importar el UsersController ---
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart'; 
+
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -20,36 +23,41 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
-    // Cargamos los datos iniciales de 'admin' (usuarios)
-    // El 'establishmentsControllerProvider' se carga solo.
+    // --- 👇 CAMBIO 2: Llamamos al NUEVO controller ---
     Future.microtask(() {
-      ref.read(adminControllerProvider.notifier).loadInitialData();
+      // Ya no llamamos a adminController.loadInitialData()
+      ref.read(usersControllerProvider.notifier).loadAdmins();
+      // El 'establishmentsControllerProvider' se carga solo (o desde su propio initState).
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 2: Miramos AMBOS providers ---
-    // 1. El estado del Admin (para la lista de usuarios)
-    final adminState = ref.watch(adminControllerProvider);
+    // --- 👇 CAMBIO 3: Miramos los providers correctos ---
+    // 1. El AdminController (solo para 'createUser', 'deleteUser', 'updateUser')
     final adminController = ref.read(adminControllerProvider.notifier);
 
-    // 2. El estado de Establishments (para la lista de establecimientos)
+    // 2. El EstablishmentsState (para la lista de establecimientos)
     final establishmentState = ref.watch(establishmentsControllerProvider);
+    
+    // 3. El NUEVO UsersState (para la lista de admins)
+    final usersState = ref.watch(usersControllerProvider);
     // ------------------------------------------
 
-    // Filtramos los usuarios (esto usa el adminState, está bien)
-    final adminUsers = adminState.users.where((user) {
-      final roleMatch = user.role.toLowerCase() == 'admin';
+    // Filtramos la lista de admins (ahora usa 'usersState')
+    final adminUsers = usersState.users.where((user) {
+      // (El filtro de 'roleMatch' ya no es necesario,
+      //  porque la lista ya viene filtrada desde el controller)
       final q = searchQuery.toLowerCase();
       final queryMatch =
           user.displayName.toLowerCase().contains(q) ||
           user.email.toLowerCase().contains(q);
-      return roleMatch && queryMatch;
+      return queryMatch;
     }).toList();
 
-    // El estado de carga depende de AMBOS
-    final bool isLoading = adminState.isLoading || establishmentState.isLoading;
+    // El estado de carga depende de los providers que leemos
+    final bool isLoading = usersState.isLoading || establishmentState.isLoading;
+    final String? error = usersState.error ?? establishmentState.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,20 +66,19 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Recargar',
-            // --- 👇 CAMBIO 3: Refrescamos AMBOS providers ---
+            // --- 👇 CAMBIO 4: Refrescamos los providers correctos ---
             onPressed: () {
-              ref.read(adminControllerProvider.notifier).loadInitialData();
+              ref.read(usersControllerProvider.notifier).loadAdmins();
               ref.invalidate(establishmentsControllerProvider);
             },
           ),
           IconButton(
             icon: const Icon(Icons.add_circle),
             tooltip: 'Crear Nuevo Admin',
-            // Pasamos la lista de establecimientos desde el NUEVO estado
             onPressed: () => _showCreateAdminDialog(
               context,
               adminController,
-              establishmentState.establishments, // <-- Pasamos la lista
+              establishmentState.establishments, 
             ),
           ),
         ],
@@ -90,7 +97,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             ),
           ),
           Expanded(
-            child: isLoading // Usamos el estado de carga combinado
+            child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : PaginatedDataTable2(
                     columns: const [
@@ -102,34 +109,38 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                       ),
                       DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
                     ],
-                    // Mostramos un error si CUALQUIERA de los dos falla
                     empty: Center(
                       child: Text(
-                        adminState.error ?? 
-                        establishmentState.error ?? 
+                        error ?? 
                         'No se encontraron administradores.'
                       ),
                     ),
-                    rowsPerPage: 5, // (Nota: pusiste 5, pero en 'available' no está. Lo cambio a 10)
+                    rowsPerPage: 10, // Ajustado para que coincida
                     availableRowsPerPage: const [10, 25, 50],
 
-                    // --- 👇 CAMBIO 4: Pasamos la lista correcta al DataSource ---
+                    // --- 👇 CAMBIO 5: Pasamos el UsersController a los diálogos ---
                     source: _AdminDataSource(
                       adminUsers: adminUsers,
-                      // Pasamos la lista desde el NUEVO estado
                       establishments: establishmentState.establishments, 
                       controller: adminController,
                       context: context,
-                      // Le pasamos los métodos de los diálogos
+                      // Pasamos el notifier para que los diálogos puedan refrescar
+                      usersNotifier: ref.read(usersControllerProvider.notifier), 
                       showReassignDialog: (user, establishments) =>
                           _showReassignDialog(
                         context,
                         adminController,
+                        ref.read(usersControllerProvider.notifier), // Pasa el notifier
                         user,
                         establishments,
                       ),
                       showDeleteDialog: (user) =>
-                          _showConfirmDeleteDialog(context, adminController, user),
+                          _showConfirmDeleteDialog(
+                            context, 
+                            adminController, 
+                            ref.read(usersControllerProvider.notifier), // Pasa el notifier
+                            user
+                          ),
                     ),
                     minWidth: 800,
                     showFirstLastButtons: true, 
@@ -141,55 +152,196 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     );
   }
 
-  // --- 👇 CAMBIO 5: Actualizamos la firma del diálogo ---
+  // --- 👇 CAMBIO 6: Diálogos actualizados para refrescar el provider correcto ---
+  // (Y con la validación que hicimos en el mensaje 221)
+
   Future<void> _showCreateAdminDialog(
     BuildContext context,
     AdminController controller,
-    List<Establishment> establishments, // <-- Recibe la lista como parámetro
+    List<Establishment> establishments,
   ) async {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     String? selectedEstablishmentId; 
     bool isSaving = false;
-
-    // YA NO leemos el provider aquí, usamos el parámetro
-    // final establishments = ref.read(adminControllerProvider).establishments; // <-- LÍNEA BORRADA
+    late BuildContext dialogContext; 
 
     await showDialog(
       context: context,
       barrierDismissible: !isSaving,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Crear Nuevo Admin'),
-            content: SingleChildScrollView(
-              child: Column(
+      builder: (context) {
+        dialogContext = context;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Crear Nuevo Admin'),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'El nombre es obligatorio';
+                          }
+                          return null;
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: emailController,
+                        enabled: !isSaving,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'El email es obligatorio';
+                          }
+                          final emailRegex = RegExp(
+                              r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                          if (!emailRegex.hasMatch(value)) {
+                            return 'Formato de email inválido';
+                          }
+                          return null;
+                        },
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedEstablishmentId,
+                        decoration: const InputDecoration(
+                          labelText: 'Asignar a Establecimiento (Opcional)',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('No asignar aún'),
+                          ),
+                          ...establishments.map(
+                            (d) =>
+                                DropdownMenuItem(value: d.id, child: Text(d.name)),
+                          ),
+                        ],
+                        onChanged: isSaving ? null : (val) =>
+                            setState(() => selectedEstablishmentId = val),
+                      ),
+                      if (isSaving) ...[
+                        const SizedBox(height: 20),
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 12),
+                        const Text("Creando..."),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                if (!isSaving)
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancelar'),
+                  ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return;
+                          }
+                          
+                          setState(() => isSaving = true);
+
+                          final newUser = AppUser.empty().copyWith(
+                            email: emailController.text.trim(),
+                            displayName: nameController.text.trim(),
+                            role: 'admin', 
+                            establishmentId: selectedEstablishmentId ?? '',
+                          );
+
+                          try {
+                            await controller.createUser(newUser);
+                            
+                            // --- 👇 Refrescamos el provider de admins ---
+                            ref.read(usersControllerProvider.notifier).loadAdmins();
+                            
+                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Admin Creado con éxito. Se envió email para resetear contraseña.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al crear: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              setState(() => isSaving = false);
+                            }
+                          }
+                        },
+                  child: Text(isSaving ? "Creando..." : "Guardar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showReassignDialog(
+    BuildContext context,
+    AdminController controller,
+    UsersController usersNotifier, // <-- Recibe el notifier
+    AppUser user,
+    List<Establishment> allEstablishments,
+  ) async {
+    String? selectedEstablishmentId = user.establishmentId.isEmpty
+        ? null
+        : user.establishmentId;
+    bool isSaving = false;
+    late BuildContext dialogContext;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: !isSaving,
+      builder: (context) {
+        dialogContext = context;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Reasignar a: ${user.displayName}'),
+              content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: selectedEstablishmentId,
                     decoration: const InputDecoration(
-                      labelText: 'Asignar a Establecimiento (Opcional)',
+                      labelText: 'Asignar a Establecimiento',
+                      border: OutlineInputBorder(),
                     ),
                     items: [
                       const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('No asignar aún'),
+                        value: null, 
+                        child: Text('No asignar / Quitar asignación'),
                       ),
-                      // Usamos la lista 'establishments' del parámetro
-                      ...establishments.map(
-                        (d) =>
-                            DropdownMenuItem(value: d.id, child: Text(d.name)),
+                      ...allEstablishments.map(
+                        (est) => DropdownMenuItem(
+                          value: est.id,
+                          child: Text(est.name),
+                        ),
                       ),
                     ],
                     onChanged: (val) =>
@@ -201,265 +353,146 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                   ],
                 ],
               ),
-            ),
-            actions: [
-              if (!isSaving)
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-              ElevatedButton(
-                onPressed: isSaving
-                    ? null
-                    : () async {
-                        // ... (Lógica de validación y creación de 'newUser' sin cambios)
-                        if (nameController.text.trim().isEmpty ||
-                            emailController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Nombre y Email son requeridos'),
-                            ),
-                          );
-                          return;
-                        }
-
-                        setState(() => isSaving = true);
-
-                        final newUser = AppUser(
-                          id: '', // Se setea en el controller
-                          email: emailController.text.trim(),
-                          displayName: nameController.text.trim(),
-                          role: 'admin', 
-                          establishmentId: selectedEstablishmentId ?? '',
-                          establishmentName: '', // El repo lo buscará
-                          vehiclePlates: const [],
-                          departmentId: '', 
-                        );
-
-                        try {
-                          await controller.createUser(newUser);
-                          if (context.mounted) Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Admin Creado con éxito. Se envió email para resetear contraseña.',
-                              ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error al crear: ${e.toString()}'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        } finally {
-                          if (context.mounted) {
-                            setState(() => isSaving = false);
-                          }
-                        }
-                      },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // --- (LOS OTROS 2 DIÁLOGOS NO NECESITAN CAMBIOS) ---
-  // _showReassignDialog y _showConfirmDeleteDialog 
-  // ya reciben los datos que necesitan como parámetros.
-
-  Future<void> _showReassignDialog(
-    BuildContext context,
-    AdminController controller,
-    AppUser user,
-    List<Establishment> allEstablishments,
-  ) async {
-    // ... (Este método está bien como está) ...
-    String? selectedEstablishmentId = user.establishmentId.isEmpty
-        ? null
-        : user.establishmentId;
-
-    bool isSaving = false;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: !isSaving,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text('Reasignar a: ${user.displayName}'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedEstablishmentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Asignar a Establecimiento',
-                    border: OutlineInputBorder(),
+              actions: [
+                if (!isSaving)
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancelar'),
                   ),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null, 
-                      child: Text('No asignar / Quitar asignación'),
-                    ),
-                    ...allEstablishments.map(
-                      (est) => DropdownMenuItem(
-                        value: est.id,
-                        child: Text(est.name),
-                      ),
-                    ),
-                  ],
-                  onChanged: (val) =>
-                      setState(() => selectedEstablishmentId = val),
-                ),
-                if (isSaving) ...[
-                  const SizedBox(height: 20),
-                  const CircularProgressIndicator(),
-                ],
-              ],
-            ),
-            actions: [
-              if (!isSaving)
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-              ElevatedButton(
-                onPressed: isSaving
-                    ? null
-                    : () async {
-                        setState(() => isSaving = true);
-
-                        try {
-                          final establishmentName = allEstablishments
-                              .firstWhere(
-                                (e) => e.id == selectedEstablishmentId,
-                                orElse: () => Establishment(
-                                  id: '',
-                                  name: 'No asignado',
-                                  address: '',
-                                  organizationType: '',
-                                  createdAt: DateTime.now(),
-                                ),
-                              )
-                              .name;
-                              
-                          await controller.updateUser(
-                            user.copyWith(
-                              establishmentId: selectedEstablishmentId ?? '',
-                              establishmentName: establishmentName,
-                            ),
-                          );
-
-                          if (context.mounted) Navigator.pop(context);
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Error al reasignar: ${e.toString()}',
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setState(() => isSaving = true);
+                          try {
+                            final establishmentName = allEstablishments
+                                .firstWhere(
+                                  (e) => e.id == selectedEstablishmentId,
+                                  orElse: () => Establishment.empty(),
+                                )
+                                .name;
+                                
+                            await controller.updateUser(
+                              user.copyWith(
+                                establishmentId: selectedEstablishmentId ?? '',
+                                establishmentName: establishmentName == 'No asignado' ? '' : establishmentName,
                               ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        } finally {
-                          if (context.mounted) {
-                            setState(() => isSaving = false);
+                            );
+
+                            // --- 👇 Refresca el provider de admins ---
+                            usersNotifier.loadAdmins();
+
+                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Error al reasignar: ${e.toString()}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (dialogContext.mounted) {
+                              setState(() => isSaving = false);
+                            }
                           }
-                        }
-                      },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
+                        },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
   Future<void> _showConfirmDeleteDialog(
     BuildContext context,
     AdminController controller,
+    UsersController usersNotifier, // <-- Recibe el notifier
     AppUser user,
   ) async {
-    // ... (Este método está bien como está) ...
     bool isDeleting = false;
+    late BuildContext dialogContext;
 
     await showDialog(
       context: context,
       barrierDismissible: !isDeleting,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text('¿Eliminar a ${user.displayName}?'),
-            content: isDeleting
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 12),
-                      Text('Eliminando usuario...'),
-                    ],
-                  )
-                : const Text(
-                    'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.'),
-            actions: isDeleting
-                ? []
-                : [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+      builder: (context) {
+        dialogContext = context;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('¿Eliminar a ${user.displayName}?'),
+              content: isDeleting
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 12),
+                        Text('Eliminando usuario...'),
+                      ],
+                    )
+                  : const Text(
+                      'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.'),
+              actions: isDeleting
+                  ? []
+                  : [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Cancelar'),
                       ),
-                      onPressed: () async {
-                        setState(() => isDeleting = true);
-
-                        try {
-                          await controller.deleteUser(user.id);
-                          if (context.mounted) Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Admin eliminado correctamente'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          if (context.mounted) Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Error al eliminar: ${e.toString()}',
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        onPressed: () async {
+                          setState(() => isDeleting = true);
+                          try {
+                            await controller.deleteUser(user.id);
+                            
+                            // --- 👇 Refresca el provider de admins ---
+                            usersNotifier.loadAdmins();
+                            
+                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Admin eliminado correctamente'),
+                                backgroundColor: Colors.green,
                               ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text('Eliminar'),
-                    ),
-                  ],
-          );
-        },
-      ),
+                            );
+                          } catch (e) {
+                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Error al eliminar: ${e.toString()}',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Eliminar'),
+                      ),
+                    ],
+            );
+          },
+        );
+      },
     );
   }
 }
 
-// --- (LA CLASE _AdminDataSource NO NECESITA CAMBIOS) ---
-// Ya recibe 'establishments' como parámetro, así que
-// mientras le pasemos la lista correcta, funcionará.
 
+// --- 👇 CAMBIO 7: Actualizar el DataSource ---
 class _AdminDataSource extends DataTableSource {
   final List<AppUser> adminUsers;
   final List<Establishment> establishments;
   final AdminController controller;
+  final UsersController usersNotifier; // <-- Recibe el notifier
   final BuildContext context;
   final Function(AppUser, List<Establishment>) showReassignDialog;
   final Function(AppUser) showDeleteDialog;
@@ -468,6 +501,7 @@ class _AdminDataSource extends DataTableSource {
     required this.adminUsers,
     required this.establishments,
     required this.controller,
+    required this.usersNotifier, // <-- Recibe el notifier
     required this.context,
     required this.showReassignDialog,
     required this.showDeleteDialog,
@@ -483,13 +517,7 @@ class _AdminDataSource extends DataTableSource {
     final establishmentName = establishments
         .firstWhere(
           (est) => est.id == user.establishmentId,
-          orElse: () => Establishment(
-            id: '',
-            name: 'No asignado',
-            address: '',
-            organizationType: '',
-            createdAt: DateTime.now(),
-          ),
+          orElse: () => Establishment.empty(),
         )
         .name;
 

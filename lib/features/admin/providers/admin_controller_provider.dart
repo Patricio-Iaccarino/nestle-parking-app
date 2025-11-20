@@ -2,6 +2,8 @@
 import 'package:cocheras_nestle_web/features/users/data/repository/users_repository.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 
@@ -47,27 +49,52 @@ class AdminController extends StateNotifier<AdminState> {
   // --------------------------------------------------
 
   // --- 👇 MÉTODOS CRUD (Ahora solo ejecutan la acción) 👇 ---
+  // Asegúrate de agregar este import arriba:
+  // import 'package:firebase_core/firebase_core.dart';
+
   Future<void> createUser(AppUser user) async {
-    ("--- [AdminController] createUser() INICIADO.");
-    state = state.copyWith(isLoading: true, error: null); // Inicia la carga
+    debugPrint("--- [AdminController] createUser() INICIADO.");
+    state = state.copyWith(isLoading: true, error: null);
+
+    // 1. Creamos una instancia temporal de la App de Firebase
+    // Esto nos permite interactuar con Auth sin afectar la sesión principal
+    FirebaseApp tempApp = await Firebase.initializeApp(
+      name: 'temporaryRegisterApp',
+      options: Firebase.app().options,
+    );
+
     try {
       final tempPassword =
           'temporaryPassword_${DateTime.now().millisecondsSinceEpoch}';
-      UserCredential userCredential = await _auth
+      
+      // 2. Usamos la instancia temporal para crear el usuario
+      // Nota: Usamos instanceFor(app: tempApp) en lugar de _auth
+      UserCredential userCredential = await FirebaseAuth.instanceFor(app: tempApp)
           .createUserWithEmailAndPassword(
             email: user.email,
             password: tempPassword,
           );
+
       final newUserId = userCredential.user!.uid;
-      await _auth.sendPasswordResetEmail(email: user.email);
+      
+      // 3. Enviamos el email (esto sí lo podemos hacer con la instancia principal o la temp)
+      // Usamos la temp para ser consistentes con el usuario recién creado
+      await FirebaseAuth.instanceFor(app: tempApp)
+          .sendPasswordResetEmail(email: user.email);
+      
       final userWithId = user.copyWith(id: newUserId);
 
-      ("--- [AdminController] createUser: Usuario creado en Auth. Llamando a repo de Firestore...");
+      debugPrint("--- [AdminController] createUser: Usuario creado en Auth (Temp). ID: $newUserId");
+      debugPrint("--- [AdminController] Sesión actual (Main): ${_auth.currentUser?.email}"); // Debería seguir siendo el SuperAdmin
+
+      // 4. Escribimos en Firestore usando el repositorio (que usa la instancia PRINCIPAL)
+      // Como no se cerró la sesión, aquí sigues siendo SuperAdmin, así que las reglas te dejarán pasar.
       await _usersRepository.createUser(userWithId);
-      ("--- [AdminController] createUser: Usuario creado en Firestore.");
+      
+      debugPrint("--- [AdminController] createUser: Usuario guardado en Firestore exitosamente.");
       
     } on FirebaseAuthException catch (e) {
-      ("--- [AdminController] ❗️ ERROR de FirebaseAuth en createUser: ${e.message}");
+      debugPrint("--- [AdminController] ❗️ ERROR de FirebaseAuth: ${e.message}");
       String errorMsg;
       if (e.code == 'email-already-in-use') {
         errorMsg = 'El correo electrónico ya está registrado.';
@@ -78,14 +105,15 @@ class AdminController extends StateNotifier<AdminState> {
       throw Exception(errorMsg); 
 
     } catch (e) {
-      ("--- [AdminController] ❗️ ERROR genérico en createUser: $e");
+      debugPrint("--- [AdminController] ❗️ ERROR genérico: $e");
       state = state.copyWith(error: e.toString(), isLoading: false);
       throw e;
     } finally {
-      state = state.copyWith(isLoading: false); // Termina la carga
+      // 5. MUY IMPORTANTE: Borrar la app temporal para liberar memoria
+      await tempApp.delete();
+      state = state.copyWith(isLoading: false);
     }
   }
-
   Future<void> updateUser(AppUser user) async {
     state = state.copyWith(isLoading: true, error: null);
     try {

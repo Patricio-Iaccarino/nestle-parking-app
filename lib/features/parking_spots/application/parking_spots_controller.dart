@@ -1,9 +1,7 @@
-
 import 'package:cocheras_nestle_web/features/parking_spots/data/repository/parking_spots_repository.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-// 1. Estado para ParkingSpots
 class ParkingSpotsState {
   final bool isLoading;
   final String? error;
@@ -28,7 +26,6 @@ class ParkingSpotsState {
   }
 }
 
-// 2. Controller para ParkingSpots
 class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
   final ParkingSpotsRepository _repository;
   ParkingSpotsController(this._repository) : super(ParkingSpotsState());
@@ -83,7 +80,6 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
   }
 }
 
-// 3. El Provider para el Controller
 final parkingSpotsControllerProvider =
     StateNotifierProvider<ParkingSpotsController, ParkingSpotsState>((ref) {
   final repo = ref.watch(parkingSpotsRepositoryProvider);

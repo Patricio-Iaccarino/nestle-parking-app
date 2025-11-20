@@ -2,22 +2,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-
 import '../domain/report_models.dart';
 import '../data/repositories/reports_repository.dart';
-
-// auth provider
 import '../../../features/auth/presentation/auth_controller.dart';
 
-
-/// PROVIDER DEL REPO
 
 final reportsRepositoryProvider = Provider<ReportsRepository>((ref) {
   return ReportsRepository(FirebaseFirestore.instance);
 });
 
 
-/// PROVIDER → Departamentos del establecimiento actual
 
 final departmentsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -36,15 +30,12 @@ final departmentsProvider =
 });
 
 
-/// ESTADO DEL REPORTE DETALLADO + KPIs
 
 class ReportsState {
   final bool loading;
   final ReportsFilter filter;
   final List<DetailedReportRecord> detailed;
   final String? error;
-
-  // KPIs
   final int totalSpots;
   final int totalLiberated;
   final int totalBooked;
@@ -85,7 +76,6 @@ class ReportsState {
 }
 
 
-/// CONTROLLER PRINCIPAL
 
 final reportsControllerProvider =
     NotifierProvider<ReportsController, ReportsState>(ReportsController.new);
@@ -137,7 +127,6 @@ class ReportsController extends Notifier<ReportsState> {
     loadReport();
   }
 
-  /// Filtro por usuario (lo dejamos por si se usa en otra UI a futuro)
   void setUserFilter(String? userId) {
     final f = state.filter;
     final newFilter = ReportsFilter(
@@ -151,7 +140,6 @@ class ReportsController extends Notifier<ReportsState> {
     loadReport();
   }
 
-  /// Filtro por departamento
   void setDeptFilter(String? deptId) {
     final f = state.filter;
     final newFilter = ReportsFilter(
@@ -166,7 +154,6 @@ class ReportsController extends Notifier<ReportsState> {
   }
 
   
-  /// Carga de datos + KPIs
  
   Future<void> loadReport() async {
   state = state.copyWith(loading: true, error: null);
@@ -178,7 +165,6 @@ class ReportsController extends Notifier<ReportsState> {
       throw Exception("Establecimiento no definido para reportes.");
     }
 
-    // Normalizar fechas al día completo
     DateTime normalizeStart(DateTime d) =>
         DateTime(d.year, d.month, d.day); 
 
@@ -188,7 +174,6 @@ class ReportsController extends Notifier<ReportsState> {
     final startDay = normalizeStart(f.range.start);
     final endDay = normalizeEnd(f.range.end);
 
-    // 1. Obtener registros detallados usando el rango normalizado
     final data = await _repo.fetchDetailedDailyReport(
       start: startDay,
       end: endDay,
@@ -197,14 +182,11 @@ class ReportsController extends Notifier<ReportsState> {
       userId: f.userId,
     );
 
-    // 2. KPIs de cantidad
     final totalBooked = data.where((e) => e.status == "BOOKED").length;
     final totalLiberated = data.where((e) => e.status == "AVAILABLE").length;
 
-    // 3. Cocheras totales
     final totalSpots = await _repo.countTotalSpots(f.establishmentId!);
 
-    // 4. Cálculo de ocupación basado en días
     final daysInRange = endDay
             .difference(startDay)
             .inDays +
@@ -217,7 +199,6 @@ class ReportsController extends Notifier<ReportsState> {
         ? 0
         : ((occupiedCarDays / totalCarDays) * 100).round();
 
-    // Logs informativos
     _logger.i("Reporte cargado: ${data.length} filas");
     _logger.i("Rango normalizado: $startDay → $endDay");
     _logger.i("Días en rango: $daysInRange");

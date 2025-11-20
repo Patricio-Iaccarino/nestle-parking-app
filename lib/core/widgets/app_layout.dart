@@ -140,33 +140,22 @@ class _SuperAdminNavigationRail extends StatelessWidget {
 // ADMIN NAVIGATION RAIL
 // ======================================================
 
-// ======================================================
-// ADMIN NAVIGATION RAIL (CORREGIDO)
-// ======================================================
-
 class _AdminNavigationRail extends ConsumerWidget {
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
 
-    // --- 👇 CAMBIO CLAVE AQUÍ 👇 ---
-    // Debemos verificar las rutas "hijas" (más largas) PRIMERO.
-    
-    // 1. Revisa las sub-rutas de 'Departamentos'
     if (location.startsWith('/establishments/departments')) {
-      // Esto incluye:
-      // .../departments/:id/spots
-      // .../departments/:id/users
-      return 1; // Selecciona 'Departamentos'
+        return 1; // Selecciona 'Departamentos'
     }
 
-    // 2. Revisa las rutas de nivel superior
+   
     if (location.startsWith('/dashboard')) return 0;
     if (location.startsWith('/departments')) return 1;
     if (location.startsWith('/users')) return 2;
-    if (location.startsWith('/parking-spots')) return 3; 
+    if (location.startsWith('/parking-spots')) return 3;
     if (location.startsWith('/reservations')) return 4;
     if (location.startsWith('/reports')) return 5;
-    
+
     return 0; // Default a Dashboard
   }
 
@@ -196,7 +185,7 @@ class _AdminNavigationRail extends ConsumerWidget {
         break;
 
       case 3: // --- COCHERAS ---
-        context.go('/parking-spots'); 
+        context.go('/parking-spots');
         break;
 
       case 4: // --- RESERVAS ---
@@ -230,7 +219,7 @@ class _AdminNavigationRail extends ConsumerWidget {
           label: Text('Usuarios'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.local_parking_rounded), 
+          icon: Icon(Icons.local_parking_rounded),
           label: Text('Cocheras'),
         ),
         NavigationRailDestination(

@@ -6,8 +6,6 @@ class EstablishmentsRepository {
   final FirebaseFirestore _firestore;
   EstablishmentsRepository(this._firestore);
 
-  // --- 🔹 MÉTODOS MOVIDOS DESDE ADMIN_REPOSITORY 🔹 ---
-
   Future<List<Establishment>> getAllEstablishments() async {
     final snapshot = await _firestore.collection('establishments').get();
     return snapshot.docs
@@ -33,11 +31,9 @@ class EstablishmentsRepository {
   }
 }
 
-// --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---
 final establishmentsRepositoryProvider = Provider<EstablishmentsRepository>((
   ref,
 ) {
-  // Usamos la misma lógica que tu admin_repository_provider
   final firestore = FirebaseFirestore.instance;
   return EstablishmentsRepository(firestore);
 });

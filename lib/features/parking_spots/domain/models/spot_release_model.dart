@@ -24,8 +24,6 @@ class SpotRelease {
     this.bookedByUserId,
   });
 
-  // ✨ ¡AQUÍ ESTÁ EL MÉTODO QUE FALTA! ✨
-  // Sigue el mismo patrón que tus otros modelos (Establishment.fromMap, etc.)
   factory SpotRelease.fromMap(Map<String, dynamic> data, String id) {
     return SpotRelease(
       id: id,
@@ -40,7 +38,7 @@ class SpotRelease {
     );
   }
 
-  // (Opcional pero recomendado) Añade un toMap por si lo necesitas
+ 
   Map<String, dynamic> toMap() {
     return {
       'parkingSpotId': parkingSpotId,

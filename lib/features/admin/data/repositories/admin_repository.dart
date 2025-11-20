@@ -13,7 +13,6 @@ class AdminRepository {
     });
   }
 
-
   Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
     String establishmentId,
   ) async {

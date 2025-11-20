@@ -47,13 +47,11 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 4: Miramos los providers correctos ---
     final establishmentState = ref.watch(establishmentsControllerProvider);
     final establishmentsController = ref.read(
       establishmentsControllerProvider.notifier,
     );
 
-    // (Leemos el NUEVO provider para la lista de admins)
     final adminUsersState = ref.watch(adminUsersControllerProvider);
     final List<AppUser> allAdmins = adminUsersState.adminUsers;
     // --------------------------------------------------
@@ -68,7 +66,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            // --- 👇 CAMBIO 5: Refrescamos los providers correctos ---
             onPressed: () {
               ref.invalidate(establishmentsControllerProvider);
               ref.read(adminUsersControllerProvider.notifier).load();
@@ -97,7 +94,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.M),
                 ],
                 rows: establishmentState.establishments.map((e) {
-                  // --- 👇 CAMBIO 6: Pasamos la lista de Admins ---
                   final adminName = _getAdminName(allAdmins, e.id);
 
                   return DataRow(
@@ -229,9 +225,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     addressController.text = suggestion['formatted'] ?? '';
                     selectedPlace = suggestion;
                   },
-                  // ⚠️ ESTA PARTE ES CLAVE
                   builder: (context, textController, focusNode) {
-                    // Sincronizamos el interno con el externo
                     textController.text = addressController.text;
                     textController.selection = TextSelection.fromPosition(
                       TextPosition(offset: textController.text.length),
@@ -242,8 +236,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     });
 
                     return TextFormField(
-                      controller:
-                          textController, // ✅ usamos el que maneja el paquete
+                      controller: textController,
                       focusNode: focusNode,
                       decoration: const InputDecoration(
                         labelText: 'Dirección',
@@ -347,7 +340,9 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
       text: establishment.address,
     );
     String orgType = establishment.organizationType;
-    final totalParkingSpotsController = TextEditingController(text: establishment.totalParkingSpots.toString());
+    final totalParkingSpotsController = TextEditingController(
+      text: establishment.totalParkingSpots.toString(),
+    );
 
     Map<String, dynamic>? selectedProperties = {
       'lat': establishment.latitude,
@@ -383,7 +378,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                         '?text=${Uri.encodeComponent(pattern)}'
                         '&lang=es&filter=countrycode:ar&apiKey=$geoapifyKey';
 
-                    // Pasamos la URL por un proxy que agrega los headers de CORS
                     final uri = Uri.parse(
                       'https://corsproxy.io/?${Uri.encodeComponent(geoapifyUrl)}',
                     );
@@ -426,7 +420,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     selectedProperties = suggestion;
                   },
                   builder: (context, textController, focusNode) {
-                    // Sincronizamos el interno con el externo
                     textController.text = addressController.text;
                     textController.selection = TextSelection.fromPosition(
                       TextPosition(offset: textController.text.length),
@@ -437,7 +430,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     });
 
                     return TextFormField(
-                      controller: textController, // ✅ usamos el del paquete
+                      controller: textController,
                       focusNode: focusNode,
                       decoration: const InputDecoration(
                         labelText: 'Dirección',
@@ -454,7 +447,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                       },
                     );
                   },
-                  // --- 👇 AÑADIMOS ESTE WIDGET PARA TRADUCIR "No items found" 👇 ---
                   emptyBuilder: (context) {
                     return const Padding(
                       padding: EdgeInsets.all(12.0),

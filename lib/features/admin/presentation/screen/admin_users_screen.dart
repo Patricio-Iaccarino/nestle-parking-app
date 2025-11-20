@@ -5,10 +5,7 @@ import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_pr
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:data_table_2/data_table_2.dart';
-
-// --- 👇 CAMBIO 1: Importar el UsersController ---
-import 'package:cocheras_nestle_web/features/users/application/users_controller.dart'; 
-
+import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -23,31 +20,19 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: Llamamos al NUEVO controller ---
     Future.microtask(() {
-      // Ya no llamamos a adminController.loadInitialData()
       ref.read(usersControllerProvider.notifier).loadAdmins();
-      // El 'establishmentsControllerProvider' se carga solo (o desde su propio initState).
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 3: Miramos los providers correctos ---
-    // 1. El AdminController (solo para 'createUser', 'deleteUser', 'updateUser')
     final adminController = ref.read(adminControllerProvider.notifier);
-
-    // 2. El EstablishmentsState (para la lista de establecimientos)
     final establishmentState = ref.watch(establishmentsControllerProvider);
-    
-    // 3. El NUEVO UsersState (para la lista de admins)
     final usersState = ref.watch(usersControllerProvider);
-    // ------------------------------------------
+    
 
-    // Filtramos la lista de admins (ahora usa 'usersState')
     final adminUsers = usersState.users.where((user) {
-      // (El filtro de 'roleMatch' ya no es necesario,
-      //  porque la lista ya viene filtrada desde el controller)
       final q = searchQuery.toLowerCase();
       final queryMatch =
           user.displayName.toLowerCase().contains(q) ||
@@ -55,10 +40,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       return queryMatch;
     }).toList();
 
-    // El estado de carga depende de los providers que leemos
     final bool isLoading = usersState.isLoading || establishmentState.isLoading;
     final String? error = usersState.error ?? establishmentState.error;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Administradores'),
@@ -66,7 +49,6 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Recargar',
-            // --- 👇 CAMBIO 4: Refrescamos los providers correctos ---
             onPressed: () {
               ref.read(usersControllerProvider.notifier).loadAdmins();
               ref.invalidate(establishmentsControllerProvider);
@@ -78,7 +60,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             onPressed: () => _showCreateAdminDialog(
               context,
               adminController,
-              establishmentState.establishments, 
+              establishmentState.establishments,
             ),
           ),
         ],
@@ -111,49 +93,42 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     ],
                     empty: Center(
                       child: Text(
-                        error ?? 
-                        'No se encontraron administradores.'
+                        error ?? 'No se encontraron administradores.',
                       ),
                     ),
-                    rowsPerPage: 10, // Ajustado para que coincida
+                    rowsPerPage: 10,
                     availableRowsPerPage: const [10, 25, 50],
 
-                    // --- 👇 CAMBIO 5: Pasamos el UsersController a los diálogos ---
                     source: _AdminDataSource(
                       adminUsers: adminUsers,
-                      establishments: establishmentState.establishments, 
+                      establishments: establishmentState.establishments,
                       controller: adminController,
                       context: context,
-                      // Pasamos el notifier para que los diálogos puedan refrescar
-                      usersNotifier: ref.read(usersControllerProvider.notifier), 
+                      usersNotifier: ref.read(usersControllerProvider.notifier),
                       showReassignDialog: (user, establishments) =>
                           _showReassignDialog(
+                            context,
+                            adminController,
+                            ref.read(usersControllerProvider.notifier),
+                            user,
+                            establishments,
+                          ),
+                      showDeleteDialog: (user) => _showConfirmDeleteDialog(
                         context,
                         adminController,
-                        ref.read(usersControllerProvider.notifier), // Pasa el notifier
+                        ref.read(usersControllerProvider.notifier),
                         user,
-                        establishments,
                       ),
-                      showDeleteDialog: (user) =>
-                          _showConfirmDeleteDialog(
-                            context, 
-                            adminController, 
-                            ref.read(usersControllerProvider.notifier), // Pasa el notifier
-                            user
-                          ),
                     ),
                     minWidth: 800,
-                    showFirstLastButtons: true, 
-                    wrapInCard: false, 
+                    showFirstLastButtons: true,
+                    wrapInCard: false,
                   ),
           ),
         ],
       ),
     );
   }
-
-  // --- 👇 CAMBIO 6: Diálogos actualizados para refrescar el provider correcto ---
-  // (Y con la validación que hicimos en el mensaje 221)
 
   Future<void> _showCreateAdminDialog(
     BuildContext context,
@@ -163,9 +138,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
-    String? selectedEstablishmentId; 
+    String? selectedEstablishmentId;
     bool isSaving = false;
-    late BuildContext dialogContext; 
+    late BuildContext dialogContext;
 
     await showDialog(
       context: context,
@@ -204,7 +179,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                             return 'El email es obligatorio';
                           }
                           final emailRegex = RegExp(
-                              r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                          );
                           if (!emailRegex.hasMatch(value)) {
                             return 'Formato de email inválido';
                           }
@@ -224,12 +200,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                             child: Text('No asignar aún'),
                           ),
                           ...establishments.map(
-                            (d) =>
-                                DropdownMenuItem(value: d.id, child: Text(d.name)),
+                            (d) => DropdownMenuItem(
+                              value: d.id,
+                              child: Text(d.name),
+                            ),
                           ),
                         ],
-                        onChanged: isSaving ? null : (val) =>
-                            setState(() => selectedEstablishmentId = val),
+                        onChanged: isSaving
+                            ? null
+                            : (val) =>
+                                  setState(() => selectedEstablishmentId = val),
                       ),
                       if (isSaving) ...[
                         const SizedBox(height: 20),
@@ -254,23 +234,26 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                           if (!(formKey.currentState?.validate() ?? false)) {
                             return;
                           }
-                          
+
                           setState(() => isSaving = true);
 
                           final newUser = AppUser.empty().copyWith(
                             email: emailController.text.trim(),
                             displayName: nameController.text.trim(),
-                            role: 'admin', 
+                            role: 'admin',
                             establishmentId: selectedEstablishmentId ?? '',
                           );
 
                           try {
                             await controller.createUser(newUser);
-                            
-                            // --- 👇 Refrescamos el provider de admins ---
-                            ref.read(usersControllerProvider.notifier).loadAdmins();
-                            
-                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+
+                            ref
+                                .read(usersControllerProvider.notifier)
+                                .loadAdmins();
+
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -283,7 +266,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                             if (dialogContext.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Error al crear: ${e.toString()}'),
+                                  content: Text(
+                                    'Error al crear: ${e.toString()}',
+                                  ),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -304,7 +289,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   Future<void> _showReassignDialog(
     BuildContext context,
     AdminController controller,
-    UsersController usersNotifier, // <-- Recibe el notifier
+    UsersController usersNotifier,
     AppUser user,
     List<Establishment> allEstablishments,
   ) async {
@@ -334,7 +319,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     ),
                     items: [
                       const DropdownMenuItem<String>(
-                        value: null, 
+                        value: null,
                         child: Text('No asignar / Quitar asignación'),
                       ),
                       ...allEstablishments.map(
@@ -371,18 +356,22 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                                   orElse: () => Establishment.empty(),
                                 )
                                 .name;
-                                
+
                             await controller.updateUser(
                               user.copyWith(
                                 establishmentId: selectedEstablishmentId ?? '',
-                                establishmentName: establishmentName == 'No asignado' ? '' : establishmentName,
+                                establishmentName:
+                                    establishmentName == 'No asignado'
+                                    ? ''
+                                    : establishmentName,
                               ),
                             );
 
-                            // --- 👇 Refresca el provider de admins ---
                             usersNotifier.loadAdmins();
 
-                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -411,7 +400,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   Future<void> _showConfirmDeleteDialog(
     BuildContext context,
     AdminController controller,
-    UsersController usersNotifier, // <-- Recibe el notifier
+    UsersController usersNotifier,
     AppUser user,
   ) async {
     bool isDeleting = false;
@@ -436,7 +425,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                       ],
                     )
                   : const Text(
-                      'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.'),
+                      'Esta acción no se puede deshacer. El usuario se eliminará permanentemente de la base de datos.',
+                    ),
               actions: isDeleting
                   ? []
                   : [
@@ -452,11 +442,12 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                           setState(() => isDeleting = true);
                           try {
                             await controller.deleteUser(user.id);
-                            
-                            // --- 👇 Refresca el provider de admins ---
+
                             usersNotifier.loadAdmins();
-                            
-                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Admin eliminado correctamente'),
@@ -464,7 +455,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                               ),
                             );
                           } catch (e) {
-                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -486,13 +479,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   }
 }
 
-
-// --- 👇 CAMBIO 7: Actualizar el DataSource ---
 class _AdminDataSource extends DataTableSource {
   final List<AppUser> adminUsers;
   final List<Establishment> establishments;
   final AdminController controller;
-  final UsersController usersNotifier; // <-- Recibe el notifier
+  final UsersController usersNotifier;
   final BuildContext context;
   final Function(AppUser, List<Establishment>) showReassignDialog;
   final Function(AppUser) showDeleteDialog;
@@ -501,7 +492,7 @@ class _AdminDataSource extends DataTableSource {
     required this.adminUsers,
     required this.establishments,
     required this.controller,
-    required this.usersNotifier, // <-- Recibe el notifier
+    required this.usersNotifier,
     required this.context,
     required this.showReassignDialog,
     required this.showDeleteDialog,

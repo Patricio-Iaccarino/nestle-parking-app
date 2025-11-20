@@ -101,15 +101,12 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     );
   }
 
-  // --- 👇 DIÁLOGOS ACTUALIZADOS CON VALIDACIÓN 👇 ---
-
   Future<void> _showAddDialog(
     BuildContext context,
     AdminController controller,
     String departmentId,
     String establishmentId,
   ) async {
-    // --- CAMBIO 1: Añadir FormKey ---
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
@@ -130,12 +127,10 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- CAMBIO 3: Usar TextFormField ---
                   TextFormField(
                     controller: nameController,
                     decoration: const InputDecoration(labelText: 'Nombre'),
                     enabled: !isSaving,
-                    // --- CAMBIO 4: Añadir Validadores ---
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'El nombre es obligatorio';
@@ -196,9 +191,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                 onPressed: isSaving
                     ? null
                     : () async {
-                        // --- CAMBIO 5: Validar el Formulario ---
                         if (!(formKey.currentState?.validate() ?? false)) {
-                          return; // No es válido
+                          return;
                         }
                         // ------------------------------------
 
@@ -258,18 +252,15 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
         builder: (context, isSaving, child) {
           return AlertDialog(
             title: const Text('Editar Usuario'),
-            // --- CAMBIO 2: Envolver en Form ---
             content: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- CAMBIO 3: Usar TextFormField ---
                   TextFormField(
                     controller: nameController,
                     decoration: const InputDecoration(labelText: 'Nombre'),
                     enabled: !isSaving,
-                    // --- CAMBIO 4: Añadir Validadores ---
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'El nombre es obligatorio';
@@ -330,11 +321,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                 onPressed: isSaving
                     ? null
                     : () async {
-                        // --- CAMBIO 5: Validar el Formulario ---
                         if (!(formKey.currentState?.validate() ?? false)) {
                           return; // No es válido
                         }
-                        // ------------------------------------
 
                         _dialogState.value = true;
                         final updated = user.copyWith(
@@ -372,7 +361,6 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     AdminController controller,
     String userId,
   ) async {
-    // (Este diálogo no tiene campos de texto, no necesita validación)
     _dialogState.value = false;
 
     final confirm = await showDialog<bool>(
@@ -413,7 +401,6 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
   }
 }
 
-// ... (Clase _UsersDataSource sin cambios) ...
 class _UsersDataSource extends DataTableSource {
   final List<AppUser> users;
   final AdminController controller;

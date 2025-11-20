@@ -25,14 +25,18 @@ class _GlobalParkingSpotsScreenState
   void initState() {
     super.initState();
     Future.microtask(() async {
-      final establishmentId =
-          ref.read(authControllerProvider).value?.establishmentId;
+      final establishmentId = ref
+          .read(authControllerProvider)
+          .value
+          ?.establishmentId;
       if (establishmentId == null) return;
 
       ref
           .read(parkingSpotsControllerProvider.notifier)
           .loadByEstablishment(establishmentId);
-      ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
+      ref
+          .read(usersControllerProvider.notifier)
+          .loadUsersByEstablishment(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
     });
   }
@@ -43,10 +47,12 @@ class _GlobalParkingSpotsScreenState
     final usersState = ref.watch(usersControllerProvider);
     final departmentsState = ref.watch(departmentsControllerProvider);
 
-    final isLoading = spotsState.isLoading ||
+    final isLoading =
+        spotsState.isLoading ||
         usersState.isLoading ||
         departmentsState.isLoading;
-    final error = spotsState.error ?? usersState.error ?? departmentsState.error;
+    final error =
+        spotsState.error ?? usersState.error ?? departmentsState.error;
 
     final users = usersState.users;
     final departments = departmentsState.departments;
@@ -65,8 +71,10 @@ class _GlobalParkingSpotsScreenState
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              final establishmentId =
-                  ref.read(authControllerProvider).value?.establishmentId;
+              final establishmentId = ref
+                  .read(authControllerProvider)
+                  .value
+                  ?.establishmentId;
               if (establishmentId == null) return;
 
               ref
@@ -75,7 +83,9 @@ class _GlobalParkingSpotsScreenState
               ref
                   .read(usersControllerProvider.notifier)
                   .loadUsersByEstablishment(establishmentId);
-              ref.read(departmentsControllerProvider.notifier).load(establishmentId);
+              ref
+                  .read(departmentsControllerProvider.notifier)
+                  .load(establishmentId);
             },
           ),
           IconButton(
@@ -102,36 +112,39 @@ class _GlobalParkingSpotsScreenState
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : filteredSpots.isEmpty
-                    ? Center(
-                        child: Text(error ?? 'No hay cocheras registradas.'),
-                      )
-                    : PaginatedDataTable2(
-                        columns: const [
-                          DataColumn2(label: Text('Número'), size: ColumnSize.S),
-                          DataColumn2(label: Text('Piso'), size: ColumnSize.S),
-                          DataColumn2(label: Text('Tipo'), size: ColumnSize.M),
-                          DataColumn2(
-                              label: Text('Departamento'),
-                              size: ColumnSize.L),
-                          DataColumn2(
-                              label: Text('Asignado a'), size: ColumnSize.L),
-                          DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
-                        ],
-                        empty: Center(
-                            child: Text(error ?? 'No se encontraron cocheras.')),
-                        rowsPerPage: 10,
-                        availableRowsPerPage: const [10, 20, 50],
-                        showFirstLastButtons: true,
-                        wrapInCard: false,
-                        source: _ParkingSpotsDataSource(
-                          spots: filteredSpots,
-                          users: users,
-                          departments: departments,
-                          onEdit: (spot) => _showEditDialog(context, spot, departments),
-                          onDelete: (spotId, deptId) =>
-                              _confirmDelete(context, spotId, deptId),
-                        ),
+                ? Center(child: Text(error ?? 'No hay cocheras registradas.'))
+                : PaginatedDataTable2(
+                    columns: const [
+                      DataColumn2(label: Text('Número'), size: ColumnSize.S),
+                      DataColumn2(label: Text('Piso'), size: ColumnSize.S),
+                      DataColumn2(label: Text('Tipo'), size: ColumnSize.M),
+                      DataColumn2(
+                        label: Text('Departamento'),
+                        size: ColumnSize.L,
                       ),
+                      DataColumn2(
+                        label: Text('Asignado a'),
+                        size: ColumnSize.L,
+                      ),
+                      DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
+                    ],
+                    empty: Center(
+                      child: Text(error ?? 'No se encontraron cocheras.'),
+                    ),
+                    rowsPerPage: 10,
+                    availableRowsPerPage: const [10, 20, 50],
+                    showFirstLastButtons: true,
+                    wrapInCard: false,
+                    source: _ParkingSpotsDataSource(
+                      spots: filteredSpots,
+                      users: users,
+                      departments: departments,
+                      onEdit: (spot) =>
+                          _showEditDialog(context, spot, departments),
+                      onDelete: (spotId, deptId) =>
+                          _confirmDelete(context, spotId, deptId),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -139,7 +152,9 @@ class _GlobalParkingSpotsScreenState
   }
 
   Future<void> _showCreateDialog(
-      BuildContext context, List<Department> departments) async {
+    BuildContext context,
+    List<Department> departments,
+  ) async {
     final numberController = TextEditingController();
     final floorController = TextEditingController();
     String type = 'SIMPLE';
@@ -177,8 +192,9 @@ class _GlobalParkingSpotsScreenState
               initialValue: selectedDepartmentId,
               decoration: const InputDecoration(labelText: 'Departamento'),
               items: departments
-                  .map((d) =>
-                      DropdownMenuItem(value: d.id, child: Text(d.name)))
+                  .map(
+                    (d) => DropdownMenuItem(value: d.id, child: Text(d.name)),
+                  )
                   .toList(),
               onChanged: (val) => selectedDepartmentId = val,
             ),
@@ -186,8 +202,9 @@ class _GlobalParkingSpotsScreenState
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (numberController.text.isEmpty ||
@@ -207,7 +224,9 @@ class _GlobalParkingSpotsScreenState
                 assignedUserName: null,
               );
 
-              await ref.read(parkingSpotsControllerProvider.notifier).create(spot);
+              await ref
+                  .read(parkingSpotsControllerProvider.notifier)
+                  .create(spot);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Guardar'),
@@ -218,108 +237,106 @@ class _GlobalParkingSpotsScreenState
   }
 
   Future<void> _showEditDialog(
-  BuildContext context,
-  ParkingSpot spot,
-  List<Department> departments,
-) async {
-  final numberController = TextEditingController(text: spot.spotNumber);
-  final floorController = TextEditingController(text: spot.floor.toString());
-  String type = spot.type;
+    BuildContext context,
+    ParkingSpot spot,
+    List<Department> departments,
+  ) async {
+    final numberController = TextEditingController(text: spot.spotNumber);
+    final floorController = TextEditingController(text: spot.floor.toString());
+    String type = spot.type;
 
-  // ✅ Aseguramos que pueda ser null sin romper el Dropdown
-  String? selectedDepartmentId = spot.departmentId == "" ? null : spot.departmentId;
+    String? selectedDepartmentId = spot.departmentId == ""
+        ? null
+        : spot.departmentId;
 
-  await showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Editar Cochera'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: numberController,
-            decoration: const InputDecoration(labelText: 'Número'),
-          ),
-          TextField(
-            controller: floorController,
-            decoration: const InputDecoration(labelText: 'Piso'),
-            keyboardType: TextInputType.number,
-          ),
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Cochera'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: numberController,
+              decoration: const InputDecoration(labelText: 'Número'),
+            ),
+            TextField(
+              controller: floorController,
+              decoration: const InputDecoration(labelText: 'Piso'),
+              keyboardType: TextInputType.number,
+            ),
 
-          // ✅ Tipo
-          DropdownButtonFormField<String>(
-            initialValue: type,
-            decoration: const InputDecoration(labelText: 'Tipo'),
-            items: const [
-              DropdownMenuItem(value: 'SIMPLE', child: Text('Simple')),
-              DropdownMenuItem(value: 'TANDEM', child: Text('Tandem')),
-            ],
-            onChanged: (val) => type = val ?? 'SIMPLE',
-          ),
+            DropdownButtonFormField<String>(
+              initialValue: type,
+              decoration: const InputDecoration(labelText: 'Tipo'),
+              items: const [
+                DropdownMenuItem(value: 'SIMPLE', child: Text('Simple')),
+                DropdownMenuItem(value: 'TANDEM', child: Text('Tandem')),
+              ],
+              onChanged: (val) => type = val ?? 'SIMPLE',
+            ),
 
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // ✅ Departamento (FIX: agregar item null-safe)
-          DropdownButtonFormField<String?>(
-            initialValue: selectedDepartmentId,
-            decoration: const InputDecoration(labelText: 'Departamento'),
+            DropdownButtonFormField<String?>(
+              initialValue: selectedDepartmentId,
+              decoration: const InputDecoration(labelText: 'Departamento'),
 
-            items: [
-              const DropdownMenuItem(
-                value: null,
-                child: Text('- Sin departamento -'),
-              ),
-
-              ...departments.map(
-                (d) => DropdownMenuItem(
-                  value: d.id,
-                  child: Text(d.name),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('- Sin departamento -'),
                 ),
-              ),
-            ],
 
-            onChanged: (val) {
-              selectedDepartmentId = val;
+                ...departments.map(
+                  (d) => DropdownMenuItem(value: d.id, child: Text(d.name)),
+                ),
+              ],
+
+              onChanged: (val) {
+                selectedDepartmentId = val;
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final updatedSpot = ParkingSpot(
+                id: spot.id,
+                spotNumber: numberController.text.trim(),
+                floor: int.tryParse(floorController.text) ?? 0,
+                type: type,
+                establishmentId: spot.establishmentId,
+
+                departmentId: selectedDepartmentId ?? "",
+
+                assignedUserId: spot.assignedUserId,
+                assignedUserName: spot.assignedUserName,
+              );
+
+              await ref
+                  .read(parkingSpotsControllerProvider.notifier)
+                  .update(updatedSpot);
+
+              if (context.mounted) Navigator.pop(context);
             },
+            child: const Text('Guardar'),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final updatedSpot = ParkingSpot(
-              id: spot.id,
-              spotNumber: numberController.text.trim(),
-              floor: int.tryParse(floorController.text) ?? 0,
-              type: type,
-              establishmentId: spot.establishmentId,
-
-              // ✅ Convertimos null → "" para Firestore si hace falta
-              departmentId: selectedDepartmentId ?? "",
-
-              assignedUserId: spot.assignedUserId,
-              assignedUserName: spot.assignedUserName,
-            );
-
-            await ref
-                .read(parkingSpotsControllerProvider.notifier)
-                .update(updatedSpot);
-
-            if (context.mounted) Navigator.pop(context);
-          },
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _confirmDelete(
-      BuildContext context, String spotId, String departmentId) async {
+    BuildContext context,
+    String spotId,
+    String departmentId,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -385,26 +402,30 @@ class _ParkingSpotsDataSource extends DataTableSource {
   DataRow? getRow(int index) {
     if (index >= spots.length) return null;
     final s = spots[index];
-    return DataRow(cells: [
-      DataCell(Text(s.spotNumber)),
-      DataCell(Text(s.floor.toString())),
-      DataCell(Text(s.type)),
-      DataCell(Text(_getDepartmentName(s.departmentId))),
-      DataCell(Text(_getUserName(s.assignedUserId))),
-      DataCell(Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => onEdit(s),
+    return DataRow(
+      cells: [
+        DataCell(Text(s.spotNumber)),
+        DataCell(Text(s.floor.toString())),
+        DataCell(Text(s.type)),
+        DataCell(Text(_getDepartmentName(s.departmentId))),
+        DataCell(Text(_getUserName(s.assignedUserId))),
+        DataCell(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () => onEdit(s),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete),
+                color: Colors.red,
+                onPressed: () => onDelete(s.id, s.departmentId),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            color: Colors.red,
-            onPressed: () => onDelete(s.id, s.departmentId),
-          ),
-        ],
-      )),
-    ]);
+        ),
+      ],
+    );
   }
 
   @override

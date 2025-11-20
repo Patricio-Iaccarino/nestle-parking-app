@@ -9,7 +9,6 @@ class UsersRepository {
 
   UsersRepository(this._firestore);
 
-  // --- MÉTODOS DE USUARIOS ---
 
   Future<AppUser> getUserProfile(String uid) async {
     final docSnap = await _firestore.collection('users').doc(uid).get();
@@ -108,7 +107,6 @@ class UsersRepository {
   }
 }
 
-// --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---
 final usersRepositoryProvider = Provider<UsersRepository>((ref) {
   final firestore = FirebaseFirestore.instance;
   return UsersRepository(firestore);

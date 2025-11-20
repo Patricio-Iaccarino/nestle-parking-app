@@ -2,18 +2,13 @@ import 'package:cocheras_nestle_web/features/departments/application/departments
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/spot_release_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// (Ya no necesitamos el admin_controller_provider para leer el estado)
-// import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_provider.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:cocheras_nestle_web/features/reservations/application/reservations_controller.dart';
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
-
-// --- 👇 Importamos el ParkingSpotsController ---
 import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
-
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -26,7 +21,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 El initState ahora carga los 4 providers de datos ---
     Future.microtask(() {
       final establishmentId = ref
           .read(authControllerProvider)
@@ -34,16 +28,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ?.establishmentId;
 
       if (establishmentId != null) {
-        // 1. Carga las reservaciones
-        ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
-        // 2. Carga los usuarios
-        ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
-        // 3. Carga los departamentos
+        ref
+            .read(reservationsControllerProvider.notifier)
+            .load(establishmentId, date: DateTime.now());
+        ref
+            .read(usersControllerProvider.notifier)
+            .loadUsersByEstablishment(establishmentId);
         ref.read(departmentsControllerProvider.notifier).load(establishmentId);
-        // 4. Carga las cocheras (NUEVO)
-        ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId);
-        
-        // (Ya NO llamamos a adminController.loadDashboardData)
+        ref
+            .read(parkingSpotsControllerProvider.notifier)
+            .loadByEstablishment(establishmentId);
       }
     });
   }
@@ -54,42 +48,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .value
         ?.establishmentId;
     if (establishmentId != null) {
-      // --- 👇 Refresca los 4 providers de datos ---
-      ref.read(reservationsControllerProvider.notifier).load(establishmentId, date: DateTime.now());
-      ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
+      ref
+          .read(reservationsControllerProvider.notifier)
+          .load(establishmentId, date: DateTime.now());
+      ref
+          .read(usersControllerProvider.notifier)
+          .loadUsersByEstablishment(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
-      ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId); // <-- NUEVO
+      ref
+          .read(parkingSpotsControllerProvider.notifier)
+          .loadByEstablishment(establishmentId);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 Miramos los 4 providers de datos ---
     final reservationsState = ref.watch(reservationsControllerProvider);
     final usersState = ref.watch(usersControllerProvider);
     final departmentState = ref.watch(departmentsControllerProvider);
-    final parkingSpotsState = ref.watch(parkingSpotsControllerProvider); // <-- NUEVO
+    final parkingSpotsState = ref.watch(
+      parkingSpotsControllerProvider,
+    );
     final theme = Theme.of(context);
 
-    // Combinamos todos los estados de carga
-    final bool isLoading = reservationsState.isLoading || 
-                           usersState.isLoading || 
-                           departmentState.isLoading ||
-                           parkingSpotsState.isLoading; // <-- NUEVO
+    final bool isLoading =
+        reservationsState.isLoading ||
+        usersState.isLoading ||
+        departmentState.isLoading ||
+        parkingSpotsState.isLoading;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // --- 👇 Leemos los datos de sus providers correctos ---
-    final parkingSpots = parkingSpotsState.parkingSpots; // <-- NUEVO
+    final parkingSpots = parkingSpotsState.parkingSpots; 
     final totalSpots = parkingSpots.length;
-    
     final releasesToday = reservationsState.spotReleases;
     final departments = departmentState.departments;
     final users = usersState.users;
-    
-    // Lógica de KPIs (ahora usa 'releasesToday')
     final availableToday = releasesToday
         .where((r) => r.status == 'AVAILABLE')
         .length;
@@ -106,7 +102,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _refreshData, // Llama a la función de refresco
+            onPressed: _refreshData, 
           ),
         ],
       ),
@@ -115,12 +111,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. SECCIÓN DE KPIs ---
             Wrap(
               spacing: 20,
               runSpacing: 20,
               children: [
-                 _buildKpiCard(
+                _buildKpiCard(
                   context,
                   icon: Icons.directions_car,
                   title: 'Ocupación Total (Hoy)',
@@ -153,28 +148,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
             const SizedBox(height: 32),
 
-            // --- 2. SECCIÓN DE RESUMEN POR DEPTO Y ACTIVIDAD ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   flex: 2,
-                  // --- 👇 Pasamos la lista de parkingSpots correcta ---
                   child: _buildDepartmentSummary(
-                    context, 
+                    context,
                     departments,
-                    parkingSpots, // <-- NUEVO
+                    parkingSpots, 
                     releasesToday,
                   ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
-                  flex: 3, 
-                  child: _buildRecentActivity(
-                    context, 
-                    releasesToday,
-                    users,
-                  )
+                  flex: 3,
+                  child: _buildRecentActivity(context, releasesToday, users),
                 ),
               ],
             ),
@@ -184,9 +173,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // --- WIDGETS COMPONENTES ---
-
-  Widget _buildKpiCard(
+   Widget _buildKpiCard(
     BuildContext context, {
     required IconData icon,
     required String title,
@@ -228,11 +215,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // --- 👇 Actualizamos la firma del widget ---
   Widget _buildDepartmentSummary(
-    BuildContext context, 
+    BuildContext context,
     List<Department> departments,
-    List<ParkingSpot> parkingSpots, // <-- CAMBIADO
+    List<ParkingSpot> parkingSpots,
     List<SpotRelease> releasesToday,
   ) {
     return Card(
@@ -255,7 +241,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 DataColumn(label: Text('Disponibles')),
               ],
               rows: departments.map((dept) {
-                // --- Lógica usa la lista 'parkingSpots' del parámetro ---
                 final spotsInDept = parkingSpots.where(
                   (s) => s.departmentId == dept.id,
                 );
@@ -288,7 +273,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildRecentActivity(
-    BuildContext context, 
+    BuildContext context,
     List<SpotRelease> spotReleases,
     List<AppUser> users,
   ) {

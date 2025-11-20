@@ -1,4 +1,3 @@
-// lib/features/departments/data/departments_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/departments/domain/models/department_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class DepartmentsRepository {
   final FirebaseFirestore _firestore;
   DepartmentsRepository(this._firestore);
-
-  // --- 🔹 MÉTODOS MOVIDOS DESDE ADMIN_REPOSITORY 🔹 ---
 
   Future<List<Department>> getDepartmentsByEstablishment(
     String establishmentId,
@@ -40,7 +37,6 @@ class DepartmentsRepository {
   }
 }
 
-// --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---
 final departmentsRepositoryProvider = Provider<DepartmentsRepository>((ref) {
   final firestore = FirebaseFirestore.instance;
   return DepartmentsRepository(firestore);

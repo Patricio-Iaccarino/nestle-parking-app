@@ -2,7 +2,6 @@ import 'package:cocheras_nestle_web/features/users/data/repository/users_reposit
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-// 1. Un Estado dedicado
 class AssignAdminState {
   final bool isLoading;
   final String? error;
@@ -27,18 +26,15 @@ class AssignAdminState {
   }
 }
 
-// 2. Un Controller dedicado
 class AssignAdminController extends StateNotifier<AssignAdminState> {
   final UsersRepository _usersRepository;
-  List<AppUser> _allAdminsCache = []; // Caché simple para evitar lecturas de DB
+  List<AppUser> _allAdminsCache = [];
 
   AssignAdminController(this._usersRepository) : super(AssignAdminState());
 
-  // Reemplaza el 'searchUsers' del AdminController
   Future<void> search(String query) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // OptimizaciÃ³n: si el caché estÃ¡ vacÃ­o, llÃ©nalo
       if (_allAdminsCache.isEmpty) {
         _allAdminsCache = await _usersRepository.getAdminUsers();
       }
@@ -62,13 +58,11 @@ class AssignAdminController extends StateNotifier<AssignAdminState> {
     }
   }
 
-  // MÃ©todo para la carga inicial
   Future<void> loadInitialAdmins() async {
     await search('');
   }
 }
 
-// 3. El Provider para el Controller
 final assignAdminControllerProvider =
     StateNotifierProvider<AssignAdminController, AssignAdminState>((ref) {
       final repo = ref.watch(usersRepositoryProvider);

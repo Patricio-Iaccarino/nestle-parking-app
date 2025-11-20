@@ -17,9 +17,6 @@ class ReportsRepository {
 
   final Logger _logger = Logger();
 
-
-  /// REPORTE DETALLADO
-
   Future<List<DetailedReportRecord>> fetchDetailedDailyReport({
     required DateTime start,
     required DateTime end,
@@ -67,7 +64,9 @@ class ReportsRepository {
       // filtros manuales
       if (departmentId != null &&
           departmentId.isNotEmpty &&
-          deptId != departmentId) continue;
+          deptId != departmentId) {
+        continue;
+      }
 
       if (userId != null && bookedBy != userId) continue;
 
@@ -110,7 +109,6 @@ class ReportsRepository {
   }
 
  
-  /// MÉTODOS DE CACHE (se usan en el reporte)
   
   Future<Map<String, dynamic>?> _getSpot(String id) async {
     if (id.isEmpty) return null;
@@ -134,7 +132,6 @@ class ReportsRepository {
   }
 
   
-  /// Cantidad total de cocheras del establecimiento
   
   Future<int> countTotalSpots(String establishmentId) async {
     final snap = await _db

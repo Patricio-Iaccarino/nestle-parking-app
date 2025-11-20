@@ -22,11 +22,10 @@ class Establishment {
 
   final int totalParkingSpots;
 
-  // --- 👇 CAMBIO 1: Añadir un constructor 'empty' ---
   factory Establishment.empty() {
     return Establishment(
       id: '',
-      name: 'No asignado', // Un valor por defecto es útil
+      name: 'No asignado', 
       address: '',
       organizationType: 'UNIFICADO',
       createdAt: DateTime.now(),
@@ -36,7 +35,6 @@ class Establishment {
     );
   }
 
-  // --- 👇 CAMBIO 2: Actualizar 'fromMap' ---
   factory Establishment.fromMap(Map<String, dynamic> data, String documentId) {
     return Establishment(
       id: documentId,
@@ -51,21 +49,18 @@ class Establishment {
     );
   }
 
-  // --- 👇 CAMBIO 3: Actualizar 'toMap' ---
   Map<String, dynamic> toMap() {
     return {
       'name': name,
       'address': address,
       'organizationType': organizationType,
-      'createdAt': Timestamp.fromDate(createdAt), // Mejor guardar como Timestamp
-      // Añadir los campos de coordenadas
+      'createdAt': Timestamp.fromDate(createdAt), 
       'latitude': latitude,
       'longitude': longitude,
       'totalParkingSpots': totalParkingSpots,
     };
   }
 
-  // --- 👇 CAMBIO 4: Actualizar 'copyWith' ---
   Establishment copyWith({
     String? id,
     String? name,

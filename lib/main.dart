@@ -24,7 +24,6 @@ class MyApp extends ConsumerWidget {
       routerConfig: router,
       theme: AppTheme(isDark: false).getTheme(),
       
-      // agregado para soportar DateRangePickerDialog y otros widgets con textos
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

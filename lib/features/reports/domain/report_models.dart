@@ -1,8 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-///Tipos de reporte (aunque ahora usamos solo uno)
-
 enum ReportKind {
   detailedDaily, 
   occupancyDaily,
@@ -10,9 +7,6 @@ enum ReportKind {
   substitutes,
   titularReleases,
 }
-
-
-/// Filtro del reporte
 
 class ReportsFilter {
   final DateRange range;
@@ -43,8 +37,6 @@ class ReportsFilter {
 }
 
 
-/// Rango de fechas simple
-
 class DateRange {
   final DateTime start;
   final DateTime end;
@@ -52,8 +44,6 @@ class DateRange {
   DateRange({required this.start, required this.end});
 }
 
-
-/// MODELO ANTIGUO 
 
 class DailyOccupancyPoint {
   final DateTime day;
@@ -68,10 +58,6 @@ class DailyOccupancyPoint {
     required this.reservedBySubstitutes,
   });
 }
-
-
-
-/// Cada fila representa una reserva o liberación de cochera
 
 
 class DetailedReportRecord {
@@ -97,7 +83,6 @@ class DetailedReportRecord {
     this.spotType,
   });
 
-  /// Factory para construir desde Firestore 
   factory DetailedReportRecord.fromFirestore(
     String id,
     Map<String, dynamic> data,
@@ -129,8 +114,5 @@ class DetailedReportRecord {
       };
 }
 
-
-
-/// Utilidad: normalizar fecha a inicio del día
 
 DateTime dayFloor(DateTime d) => DateTime(d.year, d.month, d.day);

@@ -1,4 +1,3 @@
-// lib/features/parking_spots/data/parking_spots_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ParkingSpotsRepository {
   final FirebaseFirestore _firestore;
   ParkingSpotsRepository(this._firestore);
-
-  // --- 🔹 MÉTODOS MOVIDOS DESDE ADMIN_REPOSITORY 🔹 ---
 
   Future<List<ParkingSpot>> getParkingSpotsByDepartment(
     String departmentId,
@@ -40,26 +37,20 @@ class ParkingSpotsRepository {
     await _firestore.collection('parkingSpots').doc(id).delete();
   }
 
-  // NOTA: Dejamos 'getParkingSpotsByEstablishment' en AdminRepository por ahora,
-  // ya que el Dashboard depende de él. Lo moveremos al final.
+  Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
+    String establishmentId,
+  ) async {
+    final snapshot = await _firestore
+        .collection('parkingSpots')
+        .where('establishmentId', isEqualTo: establishmentId)
+        .get();
 
-Future<List<ParkingSpot>> getParkingSpotsByEstablishment(
-  String establishmentId,
-) async {
-  final snapshot = await _firestore
-      .collection('parkingSpots')
-      .where('establishmentId', isEqualTo: establishmentId)
-      .get();
-
-  return snapshot.docs
-      .map((doc) => ParkingSpot.fromMap(doc.data(), doc.id))
-      .toList();
+    return snapshot.docs
+        .map((doc) => ParkingSpot.fromMap(doc.data(), doc.id))
+        .toList();
+  }
 }
 
-
-}
-
-// --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---
 final parkingSpotsRepositoryProvider = Provider<ParkingSpotsRepository>((ref) {
   final firestore = FirebaseFirestore.instance;
   return ParkingSpotsRepository(firestore);

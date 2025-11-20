@@ -7,8 +7,6 @@ import 'package:cocheras_nestle_web/features/admin/providers/admin_controller_pr
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
-
-// --- 👇 CAMBIO 1: Importar los nuevos controllers ---
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
 
@@ -25,30 +23,24 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: El initState ahora carga los 3 providers de datos ---
     Future.microtask(() async {
       final establishmentId = ref
           .read(authControllerProvider)
           .value
           ?.establishmentId;
       if (establishmentId == null) return;
-
-      // 1. Carga los usuarios
       ref
           .read(usersControllerProvider.notifier)
           .loadUsersByEstablishment(establishmentId);
-      // 2. Carga las cocheras (para la columna 'Cochera')
       ref
           .read(parkingSpotsControllerProvider.notifier)
           .loadByEstablishment(establishmentId);
-      // 3. Carga los departamentos (para el dropdown de 'Crear')
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 3: Miramos los providers correctos ---
     final adminController = ref.read(
       adminControllerProvider.notifier,
     ); // Para acciones
@@ -67,7 +59,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     final String? error =
         usersState.error ?? departmentState.error ?? parkingSpotsState.error;
 
-    // Leemos de los estados correctos
     final users = usersState.users.where((u) {
       final q = searchQuery.toLowerCase();
       return u.displayName.toLowerCase().contains(q) ||
@@ -84,7 +75,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            // --- 👇 CAMBIO 4: Refrescamos los 3 providers ---
             onPressed: () {
               final establishmentId = ref
                   .read(authControllerProvider)
@@ -151,8 +141,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     source: _UsersDataSource(
                       users: users,
                       departments: departments,
-                      parkingSpots:
-                          parkingSpots, // (Ahora viene de parkingSpotsState)
+                      parkingSpots: parkingSpots,
                       onEdit: (user) =>
                           _showEditDialog(context, adminController, user),
                       onDelete: (userId) =>
@@ -210,7 +199,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             .value
                             ?.establishmentId;
                         if (estId != null) {
-                          // Refrescamos users y también spots (por si estaba asignado)
                           await ref
                               .read(usersControllerProvider.notifier)
                               .loadUsersByEstablishment(estId);
@@ -229,9 +217,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
-  // ───────────────────────────────────────────────
-  // CREAR USUARIO (CON VALIDACIÓN)
-  // ───────────────────────────────────────────────
   Future<void> _showCreateUserDialog(
     BuildContext context,
     AdminController controller,
@@ -332,9 +317,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                               : (val) =>
                                     setState(() => selectedDepartmentId = val),
 
-                          // --- 👇 AQUÍ ESTÁ EL ARREGLO 👇 ---
-                          // (Simplemente chequeamos que no sea nulo,
-                          // ya que este campo solo aparece si el rol es Titular o Suplente)
                           validator: (val) {
                             if (val == null) {
                               return 'Debe seleccionar un depto.';
@@ -423,7 +405,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     AdminController controller,
     AppUser user,
   ) async {
-    // --- 👇 CAMBIO 1: Añadir FormKey ---
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: user.displayName);
     final emailController = TextEditingController(text: user.email);
@@ -438,18 +419,15 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Editar Usuario'),
-              // --- 👇 CAMBIO 2: Envolver en Form ---
               content: Form(
                 key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // --- 👇 CAMBIO 3: Usar TextFormField ---
                     TextFormField(
                       controller: nameController,
                       decoration: const InputDecoration(labelText: 'Nombre'),
                       enabled: !isSaving,
-                      // --- 👇 CAMBIO 4: Añadir Validador ---
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
                           return 'Campo obligatorio';
@@ -510,7 +488,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
-                          // --- 👇 CAMBIO 5: Validar el Formulario ---
                           if (!(formKey.currentState?.validate() ?? false)) {
                             return; // No es válido
                           }
@@ -526,8 +503,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 
                           try {
                             await controller.updateUser(updated);
-                            // 'updateUser' ya llama a 'loadInitialData',
-                            // así que la lista se refrescará sola.
                             if (context.mounted) Navigator.pop(context);
                           } catch (e) {
                             if (context.mounted) {
@@ -555,12 +530,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 }
 
 // ───────────────────────────────────────────────
-// DATA SOURCE (Sin cambios)
+// DATA SOURCE
 // ───────────────────────────────────────────────
 class _UsersDataSource extends DataTableSource {
   final List<AppUser> users;
   final List<Department> departments;
-  final List<dynamic> parkingSpots; // Sigue siendo List<dynamic>
+  final List<dynamic> parkingSpots;
   final Function(AppUser) onEdit;
   final Function(String) onDelete;
 
@@ -583,7 +558,6 @@ class _UsersDataSource extends DataTableSource {
 
   String _getSpotNumber(String userId) {
     try {
-      // Asumimos que parkingSpots es List<ParkingSpot>
       return (parkingSpots as List<ParkingSpot>)
           .firstWhere((s) => s.assignedUserId == userId)
           .spotNumber;

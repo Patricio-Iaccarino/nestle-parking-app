@@ -9,8 +9,6 @@ import 'package:cocheras_nestle_web/features/parking_spots/application/parking_s
 import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
 import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 
-
-
 class DepartmentsScreen extends ConsumerStatefulWidget {
   final String establishmentId;
   const DepartmentsScreen({super.key, required this.establishmentId});
@@ -23,56 +21,45 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   @override
   void initState() {
     super.initState();
-    // --- 👇 CAMBIO 2: El initState ahora carga los 3 providers de datos ---
     Future.microtask(() {
-      // 1. Carga los departamentos
       ref
           .read(departmentsControllerProvider.notifier)
           .load(widget.establishmentId);
-      // 2. Carga los usuarios (para el conteo)
       ref
           .read(usersControllerProvider.notifier)
           .loadUsersByEstablishment(widget.establishmentId);
-      // 3. Carga las cocheras (para el conteo)
       ref
           .read(parkingSpotsControllerProvider.notifier)
           .loadByEstablishment(widget.establishmentId);
-      
-      // (Ya NO llamamos a adminController.loadDashboardData)
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 👇 CAMBIO 3: Miramos los 3 providers ---
     final departmentState = ref.watch(departmentsControllerProvider);
     final departmentsController = ref.read(
       departmentsControllerProvider.notifier,
     );
-    // (Leemos los nuevos providers para los conteos)
     final usersState = ref.watch(usersControllerProvider);
     final parkingSpotsState = ref.watch(parkingSpotsControllerProvider);
-    final establishmentsState = ref.watch(establishmentsControllerProvider);
-    final establishmentsController = ref.read(establishmentsControllerProvider.notifier);
-    final Establishment? currentEstablishment = establishmentsController.getEstablishmentById(widget.establishmentId);
+    final establishmentsController = ref.read(
+      establishmentsControllerProvider.notifier,
+    );
+    final Establishment? currentEstablishment = establishmentsController
+        .getEstablishmentById(widget.establishmentId);
 
     if (currentEstablishment == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     // -------------------------------------
 
-    // El estado de carga depende de los TRES
-    final bool isLoading = departmentState.isLoading || 
-                           usersState.isLoading || 
-                           parkingSpotsState.isLoading;
-                           
-    final String? error = departmentState.error ?? 
-                          usersState.error ?? 
-                          parkingSpotsState.error;
+    final bool isLoading =
+        departmentState.isLoading ||
+        usersState.isLoading ||
+        parkingSpotsState.isLoading;
+
+    final String? error =
+        departmentState.error ?? usersState.error ?? parkingSpotsState.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -96,16 +83,11 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
-              if (currentEstablishment == null) {
-                // Optionally show a snackbar or error message
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No se pudo cargar la información del establecimiento.'),
-                  ),
-                );
-                return;
-              }
-              _showAddDialog(context, departmentsController, currentEstablishment);
+              _showAddDialog(
+                context,
+                departmentsController,
+                currentEstablishment,
+              );
             },
           ),
         ],
@@ -116,9 +98,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
               padding: const EdgeInsets.all(16),
               child: DataTable2(
                 empty: Center(
-                  child: Text(
-                    error ?? 'No hay departamentos registrados.',
-                  ),
+                  child: Text(error ?? 'No hay departamentos registrados.'),
                 ),
                 minWidth: 700,
                 columnSpacing: 28,
@@ -129,7 +109,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                   DataColumn2(label: Text('Usuarios'), size: ColumnSize.S),
                   DataColumn2(label: Text('Acciones'), size: ColumnSize.L),
                 ],
-                // --- 👇 CAMBIO 5: Usamos las nuevas listas para los conteos ---
                 rows: departmentState.departments.map((dept) {
                   final spotsInDept = parkingSpotsState.parkingSpots
                       .where((s) => s.departmentId == dept.id)
@@ -160,7 +139,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             ),
                             IconButton(
                               icon: const Icon(
-                                  Icons.directions_car_filled_outlined),
+                                Icons.directions_car_filled_outlined,
+                              ),
                               tooltip: 'Ver Cocheras',
                               onPressed: () {
                                 context.push(
@@ -172,14 +152,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar Departamento',
                               onPressed: () {
-                                if (currentEstablishment == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('No se pudo cargar la información del establecimiento.'),
-                                    ),
-                                  );
-                                  return;
-                                }
                                 _showEditDialog(
                                   context,
                                   departmentsController,
@@ -209,9 +181,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  // --- (Los diálogos ya estaban bien, solo usan DepartmentsController) ---
-  // --- (Y ya tienen la validación de formulario que hicimos) ---
-
+  
   Future<void> _showAddDialog(
     BuildContext context,
     DepartmentsController controller,
@@ -227,7 +197,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
       0,
       (sum, dept) => sum + dept.parkingSpotsCount,
     );
-    final availableSpots = currentEstablishment.totalParkingSpots - totalAssignedSpots;
+    final availableSpots =
+        currentEstablishment.totalParkingSpots - totalAssignedSpots;
 
     await showDialog(
       context: context,
@@ -313,17 +284,20 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   ) async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: dept.name);
-    final descriptionController =
-        TextEditingController(text: dept.description ?? '');
-    final parkingSpotsController =
-        TextEditingController(text: dept.parkingSpotsCount.toString());
+    final descriptionController = TextEditingController(
+      text: dept.description ?? '',
+    );
+    final parkingSpotsController = TextEditingController(
+      text: dept.parkingSpotsCount.toString(),
+    );
 
     final departmentState = ref.read(departmentsControllerProvider);
     final totalAssignedSpots = departmentState.departments.fold<int>(
       0,
       (sum, d) => sum + d.parkingSpotsCount,
     );
-    final availableSpots = currentEstablishment.totalParkingSpots -
+    final availableSpots =
+        currentEstablishment.totalParkingSpots -
         totalAssignedSpots +
         dept.parkingSpotsCount;
 

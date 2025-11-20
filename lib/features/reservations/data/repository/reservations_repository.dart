@@ -9,10 +9,8 @@ class ReservationsRepository {
 
   ReservationsRepository(this._firestore);
 
-  /// Normaliza una fecha al inicio del día (00:00:00)
   DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
-  // --- 🔹 MÉTODO MOVIDO DESDE ADMIN_REPOSITORY 🔹 ---
   Future<List<SpotRelease>> getReservations(
     String establishmentId, {
     DateTime? date,
@@ -97,7 +95,6 @@ class ReservationsRepository {
     await _firestore.collection('spotReleases').add(data);
   }
 
-  /// Reservar una liberación (pasa de AVAILABLE → BOOKED)
   Future<void> reserveRelease({
     required String releaseId,
     required String bookedByUserId, // suplente
@@ -119,7 +116,6 @@ class ReservationsRepository {
     });
   }
 
-  /// Cancelar una reserva (BOOKED → AVAILABLE)
   Future<void> cancelReservation({
     required String releaseId,
   }) async {
@@ -141,7 +137,6 @@ class ReservationsRepository {
   }
 }
 
-// --- 🔹 EL PROVIDER VA EN EL MISMO ARCHIVO 🔹 ---
 final reservationsRepositoryProvider = Provider<ReservationsRepository>((ref) {
   final firestore = FirebaseFirestore.instance;
   return ReservationsRepository(firestore);

@@ -8,25 +8,19 @@ class AppTheme {
     return ThemeData(
       fontFamily: 'Roboto',
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF005792), // Azul corporativo de Nestlé
+        seedColor: const Color(0xFF005792),
         primary: const Color(0xFF005792),
-        secondary: const Color(
-          0xFFD91E28,
-        ), // Rojo de Nestlé para acentos (ej. botones de borrar)
+        secondary: const Color(0xFFD91E28),
         brightness: isDark ? Brightness.dark : Brightness.light,
       ),
-      // Define el estilo de los botones
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(
-            0xFFD91E28,
-          ), // Botones con el azul primario
-          foregroundColor: Colors.white, // Texto blanco en los botones
+          backgroundColor: const Color(0xFFD91E28),
+          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
-      // Define el estilo de los campos de texto
       inputDecorationTheme: InputDecorationTheme(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,

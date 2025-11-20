@@ -4,7 +4,7 @@ import 'package:cocheras_nestle_web/features/users/application/users_controller.
 import 'package:data_table_2/data_table_2.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking_spot_model.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Para filtrar números
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:go_router/go_router.dart';
@@ -32,14 +32,12 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      // 1. Carga las cocheras de este depto
       ref
           .read(parkingSpotsControllerProvider.notifier)
           .load(widget.departmentId);
       ref
           .read(usersControllerProvider.notifier)
           .loadUsersByDepartment(widget.departmentId);
-      // 3. Carga los deptos (para encontrar el nombre del depto actual)
       ref
           .read(departmentsControllerProvider.notifier)
           .load(widget.establishmentId);
@@ -64,7 +62,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     final String? error =
         spotsState.error ?? usersState.error ?? deptsState.error; //
 
-    // Lógica para encontrar el nombre (ahora usa deptsState)
     String departmentName = 'Cocheras';
     try {
       final dept = deptsState.departments.firstWhere(
@@ -72,7 +69,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       );
       departmentName = 'Cocheras de ${dept.name}';
     } catch (e) {
-      departmentName = widget.departmentName; // Fallback
+      departmentName = widget.departmentName;
     }
 
     return Scaffold(
@@ -138,8 +135,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                   users: usersState.users,
                   controller: spotsController,
                   context: context,
-                  dialogState:
-                      _assignDialogState, // Pasa el notifier de diálogo
+                  dialogState: _assignDialogState,
                   showAssignDialog: (spot, users) => _showAssignUserDialog(
                     context,
                     spotsController,
@@ -154,7 +150,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     );
   }
 
-  // --- DIÁLOGO ASIGNAR USUARIO ---
   Future<void> _showAssignUserDialog(
     BuildContext context,
     ParkingSpotsController controller,
@@ -191,12 +186,12 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
             ),
           );
         } catch (e) {
-          // Usuario no encontrado
+          // No hacemos nada si no se encuentra el usuario
         }
       }
     }
     String? tempSelectedUserId = selectedUserId;
-    _assignDialogState.value = false; // Reseteamos estado
+    _assignDialogState.value = false; 
 
     await showDialog(
       context: context,
@@ -266,7 +261,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     );
   }
 
-  // --- DIÁLOGO CONFIRMAR ELIMINAR ---
   Future<void> _confirmDelete(
     BuildContext context,
     ParkingSpotsController controller,
@@ -312,7 +306,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     String departmentId,
     String establishmentId,
   ) async {
-    
     final formKey = GlobalKey<FormState>();
     final spotNumberController = TextEditingController();
     final floorController = TextEditingController();
@@ -323,25 +316,21 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       context: context,
       barrierDismissible: !isSaving,
       builder: (context) {
-        
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
               title: const Text('Agregar Cochera Rápida'),
-              // --- CAMBIO 3: Envolver en Form ---
               content: Form(
                 key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // --- CAMBIO 4: Usar TextFormField ---
                     TextFormField(
                       controller: spotNumberController,
                       enabled: !isSaving,
                       decoration: const InputDecoration(
                         labelText: 'Número de Cochera',
                       ),
-                      // --- CAMBIO 5: Añadir Validador ---
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'El número es obligatorio';
@@ -402,7 +391,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
-                          // --- CAMBIO 6: Validar el formulario ---
                           if (formKey.currentState?.validate() ?? false) {
                             setState(() => isSaving = true);
 
@@ -448,9 +436,6 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
   }
 }
 
-// =================================================================
-// ## CLASE AUXILIAR REQUERIDA: DataTableSource
-// =================================================================
 
 class _ParkingSpotsDataSource extends DataTableSource {
   final List<ParkingSpot> parkingSpots;
@@ -481,8 +466,7 @@ class _ParkingSpotsDataSource extends DataTableSource {
     final userName = users
         .firstWhere(
           (u) => u.id == spot.assignedUserId,
-          orElse: () => AppUser.empty(), // Usamos el constructor empty
-        )
+          orElse: () => AppUser.empty(),         )
         .displayName;
 
     return DataRow(

@@ -1,9 +1,6 @@
-// lib/features/users/presentation/users_controller.dart
 import 'package:cocheras_nestle_web/features/users/data/repository/users_repository.dart';
 import 'package:cocheras_nestle_web/features/users/models/app_user_model.dart';
 import 'package:flutter_riverpod/legacy.dart';
-
-// 1. Un Estado dedicado solo para Usuarios
 class UsersState {
   final bool isLoading;
   final String? error;
@@ -27,14 +24,11 @@ class UsersState {
     );
   }
 }
-
-// 2. Un Controller dedicado
 class UsersController extends StateNotifier<UsersState> {
   final UsersRepository _usersRepository;
 
   UsersController(this._usersRepository) : super(UsersState());
 
-  // Carga usuarios de un solo departamento (para la 'UsersScreen')
   Future<void> loadUsersByDepartment(String departmentId) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -45,14 +39,11 @@ class UsersController extends StateNotifier<UsersState> {
     }
   }
 
-  // Carga TODOS los usuarios (Titulares, Suplentes, etc.) de un establecimiento
-  // (para la 'GlobalUsersScreen')
   Future<void> loadUsersByEstablishment(String establishmentId) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _usersRepository.getUsersForEstablishment(establishmentId);
       
-      // Filtramos para que el Admin no vea a otros Admins o SuperAdmins
       final filteredList = result.where((user) => 
           user.role.toLowerCase() != 'superadmin' &&
           user.role.toLowerCase() != 'admin'
@@ -67,7 +58,6 @@ class UsersController extends StateNotifier<UsersState> {
   Future<void> loadAdmins() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // (Este método 'getAdminUsers' ya lo habíamos creado en el UsersRepository)
       final result = await _usersRepository.getAdminUsers();
       state = state.copyWith(users: result, isLoading: false);
     } catch (e) {
@@ -76,10 +66,8 @@ class UsersController extends StateNotifier<UsersState> {
   }
 }
 
-// 3. El Provider para el Controller
 final usersControllerProvider =
     StateNotifierProvider<UsersController, UsersState>((ref) {
-  // Este provider ahora usa el UsersRepository
   final repo = ref.watch(usersRepositoryProvider);
   return UsersController(repo);
 });

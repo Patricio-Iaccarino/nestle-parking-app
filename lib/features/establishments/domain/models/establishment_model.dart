@@ -17,7 +17,10 @@ class Establishment {
     required this.createdAt,
     this.latitude,
     this.longitude,
+    required this.totalParkingSpots,
   });
+
+  final int totalParkingSpots;
 
   // --- 👇 CAMBIO 1: Añadir un constructor 'empty' ---
   factory Establishment.empty() {
@@ -29,6 +32,7 @@ class Establishment {
       createdAt: DateTime.now(),
       latitude: null,
       longitude: null,
+      totalParkingSpots: 0,
     );
   }
 
@@ -43,6 +47,7 @@ class Establishment {
       // Añadir los campos de coordenadas (como double nulables)
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
+      totalParkingSpots: (data['totalParkingSpots'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -56,6 +61,7 @@ class Establishment {
       // Añadir los campos de coordenadas
       'latitude': latitude,
       'longitude': longitude,
+      'totalParkingSpots': totalParkingSpots,
     };
   }
 
@@ -68,6 +74,7 @@ class Establishment {
     DateTime? createdAt,
     double? latitude,
     double? longitude,
+    int? totalParkingSpots,
   }) {
     return Establishment(
       id: id ?? this.id,
@@ -77,6 +84,7 @@ class Establishment {
       createdAt: createdAt ?? this.createdAt,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      totalParkingSpots: totalParkingSpots ?? this.totalParkingSpots,
     );
   }
 }

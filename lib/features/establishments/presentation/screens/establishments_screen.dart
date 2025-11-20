@@ -19,6 +19,7 @@ class EstablishmentsScreen extends ConsumerStatefulWidget {
 }
 
 class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
+  final totalParkingSpotsController = TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -284,6 +285,24 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                     prefixIcon: Icon(Icons.category),
                   ),
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: totalParkingSpotsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Total de Cocheras',
+                    prefixIcon: Icon(Icons.local_parking),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Campo obligatorio';
+                    }
+                    if (int.tryParse(val) == null || int.parse(val) < 0) {
+                      return 'Ingrese un número válido de cocheras';
+                    }
+                    return null;
+                  },
+                ),
               ],
             ),
           ),
@@ -305,6 +324,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 createdAt: DateTime.now(),
                 latitude: selectedPlace?['lat']?.toDouble(),
                 longitude: selectedPlace?['lon']?.toDouble(),
+                totalParkingSpots: int.parse(totalParkingSpotsController.text),
               );
               await controller.create(est);
               if (context.mounted) Navigator.pop(context);
@@ -327,6 +347,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
       text: establishment.address,
     );
     String orgType = establishment.organizationType;
+    final totalParkingSpotsController = TextEditingController(text: establishment.totalParkingSpots.toString());
 
     Map<String, dynamic>? selectedProperties = {
       'lat': establishment.latitude,
@@ -463,6 +484,24 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                   validator: (v) =>
                       v == null || v.isEmpty ? 'Seleccione un tipo' : null,
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: totalParkingSpotsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Total de Cocheras',
+                    prefixIcon: Icon(Icons.local_parking),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Ingrese un número';
+                    }
+                    if (int.tryParse(v) == null || int.parse(v) < 0) {
+                      return 'Ingrese un número válido de cocheras';
+                    }
+                    return null;
+                  },
+                ),
               ],
             ),
           ),
@@ -482,6 +521,7 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
                 organizationType: orgType,
                 latitude: selectedProperties?['lat']?.toDouble(),
                 longitude: selectedProperties?['lon']?.toDouble(),
+                totalParkingSpots: int.parse(totalParkingSpotsController.text),
               );
 
               await controller.update(updated);

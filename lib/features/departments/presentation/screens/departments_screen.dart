@@ -6,6 +6,8 @@ import 'package:cocheras_nestle_web/features/departments/domain/models/departmen
 import 'package:go_router/go_router.dart';
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
+import 'package:cocheras_nestle_web/features/establishments/application/establishments_controller.dart';
+import 'package:cocheras_nestle_web/features/establishments/domain/models/establishment_model.dart';
 
 
 
@@ -50,6 +52,17 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     // (Leemos los nuevos providers para los conteos)
     final usersState = ref.watch(usersControllerProvider);
     final parkingSpotsState = ref.watch(parkingSpotsControllerProvider);
+    final establishmentsState = ref.watch(establishmentsControllerProvider);
+    final establishmentsController = ref.read(establishmentsControllerProvider.notifier);
+    final Establishment? currentEstablishment = establishmentsController.getEstablishmentById(widget.establishmentId);
+
+    if (currentEstablishment == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     // -------------------------------------
 
     // El estado de carga depende de los TRES
@@ -82,7 +95,18 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddDialog(context, departmentsController),
+            onPressed: () {
+              if (currentEstablishment == null) {
+                // Optionally show a snackbar or error message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No se pudo cargar la información del establecimiento.'),
+                  ),
+                );
+                return;
+              }
+              _showAddDialog(context, departmentsController, currentEstablishment);
+            },
           ),
         ],
       ),
@@ -147,11 +171,22 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                             IconButton(
                               icon: const Icon(Icons.edit),
                               tooltip: 'Editar Departamento',
-                              onPressed: () => _showEditDialog(
-                                context,
-                                departmentsController,
-                                dept,
-                              ),
+                              onPressed: () {
+                                if (currentEstablishment == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('No se pudo cargar la información del establecimiento.'),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                _showEditDialog(
+                                  context,
+                                  departmentsController,
+                                  dept,
+                                  currentEstablishment,
+                                );
+                              },
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete),
@@ -180,10 +215,19 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   Future<void> _showAddDialog(
     BuildContext context,
     DepartmentsController controller,
+    Establishment currentEstablishment,
   ) async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
+    final parkingSpotsController = TextEditingController();
+
+    final departmentState = ref.read(departmentsControllerProvider);
+    final totalAssignedSpots = departmentState.departments.fold<int>(
+      0,
+      (sum, dept) => sum + dept.parkingSpotsCount,
+    );
+    final availableSpots = currentEstablishment.totalParkingSpots - totalAssignedSpots;
 
     await showDialog(
       context: context,
@@ -209,6 +253,28 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 controller: descriptionController,
                 decoration: const InputDecoration(labelText: 'Descripción'),
               ),
+              TextFormField(
+                controller: parkingSpotsController,
+                decoration: InputDecoration(
+                  labelText: 'Cantidad de Cocheras',
+                  helperText: 'Disponibles: $availableSpots',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Campo obligatorio';
+                  }
+                  final spots = int.tryParse(value);
+                  if (spots == null || spots < 0) {
+                    return 'Ingrese un número válido';
+                  }
+                  if (spots > availableSpots) {
+                    return 'Excede las cocheras disponibles ($availableSpots)';
+                  }
+                  return null;
+                },
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+              ),
             ],
           ),
         ),
@@ -226,6 +292,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                   description: descriptionController.text.trim(),
                   establishmentId: widget.establishmentId,
                   createdAt: DateTime.now(),
+                  parkingSpotsCount: int.parse(parkingSpotsController.text),
                 );
                 await controller.create(newDept);
                 if (context.mounted) Navigator.pop(context);
@@ -242,11 +309,23 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     BuildContext context,
     DepartmentsController controller,
     Department dept,
+    Establishment currentEstablishment,
   ) async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: dept.name);
     final descriptionController =
         TextEditingController(text: dept.description ?? '');
+    final parkingSpotsController =
+        TextEditingController(text: dept.parkingSpotsCount.toString());
+
+    final departmentState = ref.read(departmentsControllerProvider);
+    final totalAssignedSpots = departmentState.departments.fold<int>(
+      0,
+      (sum, d) => sum + d.parkingSpotsCount,
+    );
+    final availableSpots = currentEstablishment.totalParkingSpots -
+        totalAssignedSpots +
+        dept.parkingSpotsCount;
 
     await showDialog(
       context: context,
@@ -272,6 +351,28 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 controller: descriptionController,
                 decoration: const InputDecoration(labelText: 'Descripción'),
               ),
+              TextFormField(
+                controller: parkingSpotsController,
+                decoration: InputDecoration(
+                  labelText: 'Cantidad de Cocheras',
+                  helperText: 'Disponibles: $availableSpots',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Campo obligatorio';
+                  }
+                  final spots = int.tryParse(value);
+                  if (spots == null || spots < 0) {
+                    return 'Ingrese un número válido';
+                  }
+                  if (spots > availableSpots) {
+                    return 'Excede las cocheras disponibles ($availableSpots)';
+                  }
+                  return null;
+                },
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+              ),
             ],
           ),
         ),
@@ -286,6 +387,7 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 final updatedDept = dept.copyWith(
                   name: nameController.text.trim(),
                   description: descriptionController.text.trim(),
+                  parkingSpotsCount: int.parse(parkingSpotsController.text),
                 );
                 await controller.update(updatedDept);
                 if (context.mounted) Navigator.pop(context);

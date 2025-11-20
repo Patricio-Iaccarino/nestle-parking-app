@@ -94,6 +94,14 @@ class EstablishmentsController extends StateNotifier<EstablishmentsState> {
       state = oldState.copyWith(error: e.toString(), isLoading: false);
     }
   }
+
+  Establishment? getEstablishmentById(String id) {
+    try {
+      return state.establishments.firstWhere((est) => est.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 // 3. El Provider para el Controller (sin cambios)

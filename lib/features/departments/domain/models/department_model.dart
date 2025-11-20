@@ -13,7 +13,10 @@ class Department {
     required this.establishmentId,
     this.description,
     required this.createdAt,
+    required this.parkingSpotsCount,
   });
+
+  final int parkingSpotsCount;
 
   factory Department.fromMap(Map<String, dynamic> data, String documentId) {
     return Department(
@@ -22,6 +25,7 @@ class Department {
       establishmentId: data['establishmentId'] ?? '',
       description: data['description'],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      parkingSpotsCount: (data['parkingSpotsCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -31,6 +35,7 @@ class Department {
       'establishmentId': establishmentId,
       'description': description,
       'createdAt': createdAt,
+      'parkingSpotsCount': parkingSpotsCount,
     };
   }
 
@@ -40,6 +45,7 @@ class Department {
     String? establishmentId,
     String? description,
     DateTime? createdAt,
+    int? parkingSpotsCount,
   }) {
     return Department(
       id: id ?? this.id,
@@ -47,6 +53,7 @@ class Department {
       establishmentId: establishmentId ?? this.establishmentId,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
+      parkingSpotsCount: parkingSpotsCount ?? this.parkingSpotsCount,
     );
   }
 }

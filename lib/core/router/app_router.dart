@@ -5,7 +5,7 @@ import 'package:cocheras_nestle_web/features/establishments/presentation/screens
 import 'package:cocheras_nestle_web/features/auth/presentation/auth_controller.dart';
 import 'package:cocheras_nestle_web/features/dashboard/dashboard_screen.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/parking_spots_screen.dart';
-import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/global_parking_spots_screen.dart'; 
+import 'package:cocheras_nestle_web/features/parking_spots/presentation/screens/global_parking_spots_screen.dart';
 import 'package:cocheras_nestle_web/features/reservations/presentation/screens/reservations_screen.dart';
 import 'package:cocheras_nestle_web/features/auth/presentation/login_screen.dart';
 import 'package:cocheras_nestle_web/features/users/presentation/users_screen.dart';
@@ -36,10 +36,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       ShellRoute(
         builder: (context, state, child) => AppLayout(child: child),
         routes: [
@@ -56,15 +53,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           // ======================================================
           GoRoute(
             path: '/establishments',
-            builder: (context, state) => const EstablishmentsScreen(),
+            builder: (context, state) {
+              if (user == null || user.role != 'superadmin') {
+                return const DashboardScreen();
+              }
+              return const EstablishmentsScreen();
+            },
           ),
 
-          GoRoute(path: '/admins', builder: (context, state) {
-            if (user == null || user.role != 'superadmin') {
-              return const DashboardScreen();
-            }
-            return const AdminUsersScreen();
-          }),
+          GoRoute(
+            path: '/admins',
+            builder: (context, state) {
+              if (user == null || user.role != 'superadmin') {
+                return const DashboardScreen();
+              }
+              return const AdminUsersScreen();
+            },
+          ),
 
           // ======================================================
           // DEPARTAMENTOS
@@ -72,8 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/departments/:establishmentId',
             builder: (context, state) {
-              final establishmentId =
-                  state.pathParameters['establishmentId']!;
+              final establishmentId = state.pathParameters['establishmentId']!;
               return DepartmentsScreen(establishmentId: establishmentId);
             },
           ),
@@ -85,14 +89,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path:
                 '/establishments/:establishmentId/departments/:departmentId/spots',
             builder: (context, state) {
-              final establishmentId =
-                  state.pathParameters['establishmentId']!;
+              final establishmentId = state.pathParameters['establishmentId']!;
               final departmentId = state.pathParameters['departmentId']!;
               return ParkingSpotsScreen(
                 establishmentId: establishmentId,
                 departmentId: departmentId,
                 departmentName:
-                    state.uri.queryParameters['departmentName'] ?? 'Departamento',
+                    state.uri.queryParameters['departmentName'] ??
+                    'Departamento',
               );
             },
           ),
@@ -116,8 +120,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path:
                 '/establishments/:establishmentId/departments/:departmentId/users',
             builder: (context, state) {
-              final establishmentId =
-                  state.pathParameters['establishmentId']!;
+              final establishmentId = state.pathParameters['establishmentId']!;
               final departmentId = state.pathParameters['departmentId']!;
               return UsersScreen(
                 establishmentId: establishmentId,
@@ -146,9 +149,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ReservationsScreen(),
             redirect: (context, state) =>
                 (user == null ||
-                        (user.role != 'superadmin' && user.role != 'admin'))
-                    ? '/dashboard'
-                    : null,
+                    (user.role != 'superadmin' && user.role != 'admin'))
+                ? '/dashboard'
+                : null,
           ),
 
           // ======================================================

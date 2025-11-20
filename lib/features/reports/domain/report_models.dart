@@ -1,19 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// ------------------------------------------------------------
-/// 🎯 Tipos de reporte (aunque ahora usamos solo uno)
-/// ------------------------------------------------------------
+
+///Tipos de reporte (aunque ahora usamos solo uno)
+
 enum ReportKind {
-  detailedDaily, // NUEVO (tabla completa)
+  detailedDaily, 
   occupancyDaily,
   byDepartment,
   substitutes,
   titularReleases,
 }
 
-/// ------------------------------------------------------------
-/// 🎯 Filtro del reporte
-/// ------------------------------------------------------------
+
+/// Filtro del reporte
+
 class ReportsFilter {
   final DateRange range;
   final String? establishmentId;
@@ -42,9 +42,9 @@ class ReportsFilter {
   }
 }
 
-/// ------------------------------------------------------------
-/// 📅 Rango de fechas simple
-/// ------------------------------------------------------------
+
+/// Rango de fechas simple
+
 class DateRange {
   final DateTime start;
   final DateTime end;
@@ -52,9 +52,9 @@ class DateRange {
   DateRange({required this.start, required this.end});
 }
 
-/// ------------------------------------------------------------
-/// 📊 MODELO ANTIGUO (lo mantenemos por si lo querés usar)
-/// ------------------------------------------------------------
+
+/// MODELO ANTIGUO 
+
 class DailyOccupancyPoint {
   final DateTime day;
   final int occupied;
@@ -69,21 +69,21 @@ class DailyOccupancyPoint {
   });
 }
 
-/// ------------------------------------------------------------
-/// ✅ NUEVO MODELO PARA TABLA DETALLADA
-/// ------------------------------------------------------------
+
+
 /// Cada fila representa una reserva o liberación de cochera
-/// ------------------------------------------------------------
+
 
 class DetailedReportRecord {
   final DateTime releaseDate;
-  final String status; // AVAILABLE | BOOKED | CANCELLED?
+  final String status; 
   final String? userId;
   final String? userName;
   final String? departmentId;
   final String? departmentName;
   final String? spotId;
   final String? spotName;
+  final String? spotType;
 
   DetailedReportRecord({
     required this.releaseDate,
@@ -94,9 +94,10 @@ class DetailedReportRecord {
     this.departmentName,
     this.spotId,
     this.spotName,
+    this.spotType,
   });
 
-  /// 🏗️ Factory para construir desde Firestore
+  /// Factory para construir desde Firestore 
   factory DetailedReportRecord.fromFirestore(
     String id,
     Map<String, dynamic> data,
@@ -106,15 +107,15 @@ class DetailedReportRecord {
       releaseDate: ts is Timestamp ? ts.toDate() : DateTime.now(),
       status: (data['status'] ?? '').toString(),
       userId: data['bookedByUserId']?.toString(),
-      userName: data['userName']?.toString(), // por si ya lo guardás
+      userName: data['userName']?.toString(),
       departmentId: data['departmentId']?.toString(),
       departmentName: data['departmentName']?.toString(),
       spotId: data['spotId']?.toString(),
       spotName: data['spotName']?.toString(),
+      spotType: data['spotType']?.toString(), 
     );
   }
 
-  /// Conversión a Map para export o debug
   Map<String, dynamic> toMap() => {
         'releaseDate': releaseDate,
         'status': status,
@@ -124,10 +125,12 @@ class DetailedReportRecord {
         'departmentName': departmentName,
         'spotId': spotId,
         'spotName': spotName,
+        'spotType': spotType,
       };
 }
 
-/// ------------------------------------------------------------
-/// 🔧 Utilidad: normalizar fecha a inicio del día
-/// ------------------------------------------------------------
+
+
+/// Utilidad: normalizar fecha a inicio del día
+
 DateTime dayFloor(DateTime d) => DateTime(d.year, d.month, d.day);

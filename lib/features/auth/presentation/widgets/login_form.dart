@@ -25,12 +25,8 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             _passwordController.text.trim(),
           );
     } catch (e) {
-      // 2. ¡No hacemos nada aquí!
-      // Este 'catch' solo existe para "atrapar" el error y
-      // evitar que la app crashee.
-      // La 'LoginScreen' (la pantalla padre) ya está usando
-      // ref.listen() para mostrar la SnackBar de error.
-    }
+      //¡No hacemos nada aquí!
+      }
   }
   
   @override

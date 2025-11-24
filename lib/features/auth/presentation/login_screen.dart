@@ -11,11 +11,9 @@ class LoginScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
 
-    // (Tu ref.listen para errores y navegación está perfecto)
     ref.listen<AsyncValue>(authControllerProvider, (previous, next) {
       next.whenOrNull(
         data: (user) {
-          // Asumiendo que el SuperAdmin no tiene dashboard y va a otra ruta
           if (user != null) {
             if (user.role == 'superadmin') {
               context.go('/establishments');
@@ -27,8 +25,9 @@ class LoginScreen extends ConsumerWidget {
         error: (error, _) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error al iniciar sesión: ${error.toString()}'),
+              content: Text('Error: ${error.toString()}'),
               backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         },
@@ -36,68 +35,120 @@ class LoginScreen extends ConsumerWidget {
     });
 
     return Scaffold(
-      // --- 👇 CAMBIO ESTÉTICO 1: Fondo con Gradiente ---
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.grey[100]!,
-              Colors.grey[300]!,
-            ],
-          ),
-        ),
-        child: Center(
-          child: SizedBox(
-            width: 400,
-            child: Card(
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // --- 👇 CAMBIO ESTÉTICO 2: Ícono más profesional ---
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: const Color(0xFFD91E28), // Tu Nestlé Red
-                      child: Icon(
-                        Icons.lock_outline, // Un ícono de login
-                        color: Colors.white,
-                        size: 50,
-                      ),
-                    ),
-                    // (También podrías usar un Image.asset('assets/nestle_logo.png') si tienes el logo)
-                    // 
-                    
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Cocheras Nestlé',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Inicia sesión para continuar',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 28),
-                    if (authState.isLoading)
-                      const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: CircularProgressIndicator(),
-                      )
-                    else
-                      const LoginForm(),
-                  ],
-                ),
+      // Fondo general gris claro para que la tarjeta resalte
+      backgroundColor: const Color(0xFFF0F2F5), 
+      body: Stack(
+        children: [
+          // --- FONDO DECORATIVO ---
+          Container(
+            height: MediaQuery.of(context).size.height * 0.4,
+            decoration: const BoxDecoration(
+              color: Color(0xFFD91E28), // Rojo Nestlé
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
               ),
             ),
           ),
-        ),
+          
+          // --- CONTENIDO CENTRADO ---
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // --- LOGO GRANDE Y LIMPIO ---
+                  // Quitamos el CircleAvatar para que el logo respire
+                  Container(
+                    padding: const EdgeInsets.all(12), // Un poco de margen interno
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Fondo blanco para el logo
+                      shape: BoxShape.circle, // Forma circular
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        )
+                      ],
+                    ),
+                    // Aumentamos el tamaño del logo
+                    height: 120, 
+                    width: 120,
+                    child: Padding(
+                      padding: const EdgeInsets.all(15.0), // Margen interno del logo
+                      child: Image.asset(
+                        'assets/images/nestle_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // --- TARJETA PRINCIPAL ---
+                  SizedBox(
+                    width: 400,
+                    child: Card(
+                      elevation: 10, // Sombra más pronunciada
+                      shadowColor: Colors.black.withOpacity(0.1),
+                      color: Colors.white, // ✨ FONDO BLANCO PURO
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Bienvenido',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF333333),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Sistema de Gestión de Cocheras',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Spinner o Formulario
+                            if (authState.isLoading)
+                              const Padding(
+                                padding: EdgeInsets.all(20.0),
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFFD91E28),
+                                ),
+                              )
+                            else
+                              const LoginForm(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  // Footer sutil
+                  const Text(
+                    '© 2025 Nestlé - Grupo 3 ORT',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

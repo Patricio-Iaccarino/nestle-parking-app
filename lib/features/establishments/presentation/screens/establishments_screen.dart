@@ -22,21 +22,16 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
   final totalParkingSpotsController = TextEditingController();
   @override
   void initState() {
-    super.initState();
-    // --- 👇 CAMBIO 2: Llamamos al NUEVO controller ---
+    super.initState(); 
     Future.microtask(() {
-      // (El 'establishmentsControllerProvider' se carga solo)
-      // (Ya NO llamamos a adminController.loadInitialData())
       ref.read(adminUsersControllerProvider.notifier).load();
     });
   }
 
-  // --- 👇 CAMBIO 3: _getAdminName ahora recibe la lista de *Admins* ---
   String _getAdminName(List<AppUser> adminUsers, String establishmentId) {
     try {
       final admin = adminUsers.firstWhere(
         (user) =>
-            // (Ya no es necesario filtrar por 'role', la lista solo tiene admins)
             user.establishmentId == establishmentId,
       );
       return admin.displayName;
@@ -54,8 +49,6 @@ class _EstablishmentsScreenState extends ConsumerState<EstablishmentsScreen> {
 
     final adminUsersState = ref.watch(adminUsersControllerProvider);
     final List<AppUser> allAdmins = adminUsersState.adminUsers;
-    // --------------------------------------------------
-
     final bool isLoading =
         establishmentState.isLoading || adminUsersState.isLoading;
     final String? error = establishmentState.error ?? adminUsersState.error;

@@ -5,11 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  User? get firebaseUser => _auth.currentUser;
+  
 
   AppUser? _cachedUser;
-
   AppUser? get currentUser => _cachedUser;
-
   Future<AppUser?> signIn(String email, String password) async {
     final userCred = await _auth.signInWithEmailAndPassword(
       email: email,
@@ -19,17 +19,13 @@ class AuthRepository {
 
     final doc = await _firestore.collection('users').doc(uid).get();
 
-    // --- CORRECCIÓN ---
     if (!doc.exists) {
-      // Si el usuario se autenticó pero no tiene perfil en Firestore,
-      // significa que es un usuario inválido para esta app. Lo echamos.
       await _auth.signOut();
       _cachedUser = null;
       throw Exception(
         'Este usuario no está registrado en la base de datos de la aplicación.',
       );
     } else {
-      // El usuario sí existe, continuamos normal.
       _cachedUser = AppUser.fromMap(doc.data()!, uid);
     }
     // ------------------

@@ -17,77 +17,92 @@ class ReportsRepository {
 
   final Logger _logger = Logger();
 
-  Future<List<DetailedReportRecord>> fetchDetailedDailyReport({
-    required DateTime start,
-    required DateTime end,
-    required String establishmentId,
-    required String? departmentId,
-    required String? userId,
-  }) async {
-    _logger.i("📌 FETCH REPORT");
-    _logger.i(
-      "Range: $start → $end | Est: $establishmentId | Dept: $departmentId | User: $userId",
-    );
+Future<List<DetailedReportRecord>> fetchDetailedDailyReport({
+  required DateTime start,
+  required DateTime end,
+  required String establishmentId,
+  required String? departmentId,
+  required String? userId,
+}) async {
+  _logger.i("📌 FETCH REPORT");
+  _logger.i(
+    "Range: $start → $end | Est: $establishmentId | Dept: $departmentId | User: $userId",
+  );
 
-    final snap = await _db
-        .collection(releasesCol)
-        .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
-        .where('establishmentId', isEqualTo: establishmentId)
-        .get();
+  final snap = await _db
+      .collection(releasesCol)
+      .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+      .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
+      .where('establishmentId', isEqualTo: establishmentId)
+      .get();
 
-    _logger.i("📦 Firestore docs encontrados: ${snap.size}");
+  _logger.i("📦 Firestore docs encontrados: ${snap.size}");
 
-    List<DetailedReportRecord> results = [];
+  List<DetailedReportRecord> results = [];
 
-    for (final doc in snap.docs) {
-      final data = doc.data();
+  for (final doc in snap.docs) {
+    final data = doc.data();
 
-      final spotId = data['parkingSpotId']?.toString() ?? "";
-      final bookedBy = data['bookedByUserId']?.toString() ?? "";
-      final releaseDept = data['departmentId']?.toString() ?? "";
+    final spotId = data['parkingSpotId']?.toString() ?? "";
+    final bookedBy = data['bookedByUserId']?.toString() ?? "";
+    final releaseDept = data['departmentId']?.toString() ?? "";
 
-      // Cochera
-      final spot = await _getSpot(spotId);
-      final spotDeptId = spot?['departmentId']?.toString() ?? "";
+    // Cochera
+    final spot = await _getSpot(spotId);
+    final spotDeptId = spot?['departmentId']?.toString() ?? "";
 
-      // Usuario (si existiera reserva)
-      final user =
-          bookedBy.isNotEmpty ? await _getUser(bookedBy) : null;
+    // Usuario (si existiera reserva)
+    final user = bookedBy.isNotEmpty ? await _getUser(bookedBy) : null;
 
-      // Departamento final
-      final deptId = user?['departmentId']?.toString() ??
-          (releaseDept.isNotEmpty ? releaseDept : spotDeptId);
+    // Departamento final
+    final deptId = user?['departmentId']?.toString() ??
+        (releaseDept.isNotEmpty ? releaseDept : spotDeptId);
 
-      final dept = await _getDept(deptId);
+    final dept = await _getDept(deptId);
 
-      // filtros manuales
-      if (departmentId != null &&
-          departmentId.isNotEmpty &&
-          deptId != departmentId) {
-        continue;
-      }
-
-      if (userId != null && bookedBy != userId) continue;
-
-      results.add(
-  DetailedReportRecord(
-    releaseDate: (data['releaseDate'] as Timestamp).toDate(),
-    status: (data['status'] ?? "").toString(),
-    userId: bookedBy.isEmpty ? null : bookedBy,
-    userName: user?['displayName'] ?? "Titular",
-    departmentId: deptId.isEmpty ? null : deptId,
-    departmentName: dept?['name'] ?? "",
-    spotId: spotId,
-    spotName: spot?['spotNumber']?.toString() ?? "",
-    spotType: spot?['type']?.toString(), 
-  ),
-);
+    // filtros manuales
+    if (departmentId != null &&
+        departmentId.isNotEmpty &&
+        deptId != departmentId) {
+      continue;
     }
 
-    _logger.i("✅ Filas finales: ${results.length}");
-    return results;
+    if (userId != null && bookedBy != userId) continue;
+
+    // status + presentismo 
+    final status = (data['status'] ?? "").toString();
+
+    bool? presenceConfirmed;
+    if (status == "BOOKED") {
+      final raw = data['presenceConfirmed'];
+      if (raw is bool) {
+        presenceConfirmed = raw;
+      } else {
+        presenceConfirmed = null; // si no existe el campo
+      }
+    }
+    
+
+    results.add(
+      DetailedReportRecord(
+        releaseDate: (data['releaseDate'] as Timestamp).toDate(),
+        status: status,
+        userId: bookedBy.isEmpty ? null : bookedBy,
+        userName: user?['displayName'] ?? "Titular",
+        departmentId: deptId.isEmpty ? null : deptId,
+        departmentName: dept?['name'] ?? "",
+        spotId: spotId,
+        spotName: spot?['spotNumber']?.toString() ?? "",
+        spotType: spot?['type']?.toString(),
+        presenceConfirmed: presenceConfirmed, 
+      ),
+    );
   }
+
+  _logger.i("✅ Filas finales: ${results.length}");
+  return results;
+}
+
 
 
   /// Departamentos DEL establecimiento

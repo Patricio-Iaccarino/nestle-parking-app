@@ -9,7 +9,33 @@ import 'package:printing/printing.dart';
 import '../../features/reports/domain/report_models.dart';
 
 class ExportService {
-  static final _df = DateFormat('yyyy-MM-dd HH:mm');
+  static final _df = DateFormat('yyyy-MM-dd');
+
+   static String _presenceLabel(DetailedReportRecord r) {
+    if (r.status != "BOOKED") return "N/A";
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final recordDay = DateTime(
+      r.releaseDate.year,
+      r.releaseDate.month,
+      r.releaseDate.day,
+    );
+
+    // Reserva futura -> siempre pendiente
+    if (recordDay.isAfter(today)) {
+      return "Pendiente";
+    }
+
+    // Mismo día
+    if (recordDay.isAtSameMomentAs(today)) {
+      return r.presenceConfirmed == true ? "Presente" : "Pendiente";
+    }
+
+    // Día pasado
+    return r.presenceConfirmed == true ? "Presente" : "Ausente";
+  }
+
 
   /// ------------------------------------------------------------------------
   /// Punto único de exportación para el reporte detallado
@@ -35,16 +61,18 @@ class ExportService {
   // ------------------------------------------------------------------------
   // CSV 
   // ------------------------------------------------------------------------
-  static Future<void> _exportDetailedToCsv(
+    static Future<void> _exportDetailedToCsv(
       List<DetailedReportRecord> data) async {
     final rows = <List<String>>[
-      ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera'],
+      ['Fecha', 'Estado', 'Usuario', 'Departamento', 'Cochera', 'Tipo', 'Presentismo'],
       ...data.map((r) => [
             _df.format(r.releaseDate),
             r.status,
             r.userName ?? '-',
             r.departmentName ?? '-',
             r.spotName ?? '-',
+            r.spotType ?? '-',
+            _presenceLabel(r),
           ]),
     ];
 
@@ -55,6 +83,7 @@ class ExportService {
       filename: "reporte_detallado.csv",
     );
   }
+
 
   // ------------------------------------------------------------------------
   // PDF 
@@ -76,6 +105,7 @@ class ExportService {
           pw.Table(
             border: pw.TableBorder.all(width: 0.5),
             children: [
+              // Header
               pw.TableRow(
                 decoration: const pw.BoxDecoration(color: PdfColors.grey300),
                 children: [
@@ -84,7 +114,9 @@ class ExportService {
                     'Estado',
                     'Usuario',
                     'Departamento',
-                    'Cochera'
+                    'Cochera',
+                    'Tipo',
+                    'Presentismo',
                   ])
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
@@ -95,6 +127,7 @@ class ExportService {
                     ),
                 ],
               ),
+              // Filas
               ...data.map(
                 (r) => pw.TableRow(
                   children: [
@@ -103,6 +136,8 @@ class ExportService {
                     _pdfCell(r.userName ?? '-'),
                     _pdfCell(r.departmentName ?? '-'),
                     _pdfCell(r.spotName ?? '-'),
+                    _pdfCell(r.spotType ?? '-'),
+                    _pdfCell(_presenceLabel(r)),
                   ],
                 ),
               ),
@@ -120,6 +155,7 @@ class ExportService {
     );
   }
 
+
   static pw.Widget _pdfCell(String text) {
     return pw.Padding(
       padding: const pw.EdgeInsets.all(4),
@@ -130,19 +166,23 @@ class ExportService {
   // ------------------------------------------------------------------------
   // EXCEL
   // ------------------------------------------------------------------------
-  static Future<void> _exportDetailedToExcel(
+    static Future<void> _exportDetailedToExcel(
       List<DetailedReportRecord> data) async {
     final excel = Excel.createExcel();
     final sheet = excel['Reporte detallado'];
 
+    // Header
     sheet.appendRow([
       TextCellValue('Fecha'),
       TextCellValue('Estado'),
       TextCellValue('Usuario'),
       TextCellValue('Departamento'),
       TextCellValue('Cochera'),
+      TextCellValue('Tipo'),
+      TextCellValue('Presentismo'),
     ]);
 
+    // Filas
     for (final r in data) {
       sheet.appendRow([
         TextCellValue(_df.format(r.releaseDate)),
@@ -150,6 +190,8 @@ class ExportService {
         TextCellValue(r.userName ?? '-'),
         TextCellValue(r.departmentName ?? '-'),
         TextCellValue(r.spotName ?? '-'),
+        TextCellValue(r.spotType ?? '-'),
+        TextCellValue(_presenceLabel(r)),
       ]);
     }
 

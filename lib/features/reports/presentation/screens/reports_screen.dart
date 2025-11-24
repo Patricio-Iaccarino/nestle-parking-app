@@ -20,123 +20,128 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String _searchText = "";
 
   @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(reportsControllerProvider);
-    final controller = ref.read(reportsControllerProvider.notifier);
+Widget build(BuildContext context) {
+  final state = ref.watch(reportsControllerProvider);
+  final controller = ref.read(reportsControllerProvider.notifier);
 
-    // Filtro de texto libre sobre los registros detallados
-    final filtered = state.detailed.where((e) {
-      final s = _searchText.toLowerCase();
-      if (s.isEmpty) return true;
+  // Filtro de texto libre sobre los registros detallados
+  final filtered = state.detailed.where((e) {
+    final s = _searchText.toLowerCase();
+    if (s.isEmpty) return true;
 
-      return (e.userName ?? "").toLowerCase().contains(s) ||
-          (e.departmentName ?? "").toLowerCase().contains(s) ||
-          (e.spotName ?? "").toLowerCase().contains(s) ||
-          (e.spotType ?? "").toLowerCase().contains(s);
-    }).toList();
+    return (e.userName ?? "").toLowerCase().contains(s) ||
+        (e.departmentName ?? "").toLowerCase().contains(s) ||
+        (e.spotName ?? "").toLowerCase().contains(s) ||
+        (e.spotType ?? "").toLowerCase().contains(s);
+  }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Reporte de Ocupación de Cocheras"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: "Actualizar",
-            onPressed: controller.loadReport,
-          ),
-          PopupMenuButton<String>(
-            tooltip: "Exportar",
-            icon: const Icon(Icons.download),
-            onSelected: (f) => ExportService.exportDetailed(f, filtered),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: "excel", child: Text("Exportar Excel")),
-              PopupMenuItem(value: "csv", child: Text("Exportar CSV")),
-              PopupMenuItem(value: "pdf", child: Text("Exportar PDF")),
-            ],
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 6),
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text("Reporte de Ocupación de Cocheras"),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: "Actualizar",
+          onPressed: controller.loadReport,
+        ),
+        PopupMenuButton<String>(
+          tooltip: "Exportar",
+          icon: const Icon(Icons.download),
+          onSelected: (f) => ExportService.exportDetailed(f, filtered),
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: "excel", child: Text("Exportar Excel")),
+            PopupMenuItem(value: "csv", child: Text("Exportar CSV")),
+            PopupMenuItem(value: "pdf", child: Text("Exportar PDF")),
+          ],
+        ),
+      ],
+    ),
+    body: Column(
+      children: [
+        const SizedBox(height: 6),
 
-          // Selector de rango de fechas
-          _DateRangePicker(state: state, controller: controller),
+        // Selector de rango de fechas
+        _DateRangePicker(state: state, controller: controller),
 
-          // Buscador + filtro de departamentos
-          _FiltersRow(
-            onSearch: (t) => setState(() => _searchText = t),
-            onDeptSelected: controller.setDeptFilter,
-          ),
+        // Buscador + filtro de departamentos
+        _FiltersRow(
+          onSearch: (t) => setState(() => _searchText = t),
+          onDeptSelected: controller.setDeptFilter,
+        ),
 
-          // KPIs
-          _KpiRow(),
+        // KPIs
+        _KpiRow(),
 
-          // Totales basados en los registros filtrados
-          _TotalsRow(records: filtered),
+        // Totales basados en los registros filtrados
+        _TotalsRow(records: filtered),
 
-          const Divider(height: 1),
+        const Divider(height: 1),
 
-          // Contenido principal: loader / error / tabla paginada
-          Expanded(
-            child: state.loading
-                ? const Center(child: CircularProgressIndicator())
-                : state.error != null
-                    ? Center(
-                        child: Text(
-                          "⚠️ ${state.error}",
-                          style: TextStyle(color: Colors.red.shade800),
-                        ),
-                      )
-                    : filtered.isEmpty
-                        ? const Center(
-                            child: Text(
-                              "No hay registros para el filtro seleccionado.",
-                            ),
-                          )
-                        : PaginatedDataTable2(
-                            columns: const [
-                              DataColumn2(
-                                label: Text("Fecha"),
-                                size: ColumnSize.M,
-                              ),
-                              DataColumn2(
-                                label: Text("Estado"),
-                                size: ColumnSize.S,
-                              ),
-                              DataColumn2(
-                                label: Text("Usuario"),
-                                size: ColumnSize.L,
-                              ),
-                              DataColumn2(
-                                label: Text("Depto"),
-                                size: ColumnSize.L,
-                              ),
-                              DataColumn2(
-                                label: Text("Cochera"),
-                                size: ColumnSize.S,
-                              ),
-                              DataColumn2(
-                                label: Text("Tipo"),
-                                size: ColumnSize.S,
-                              ),
-                            ],
-                            empty: const Center(
-                              child: Text(
-                                "No hay registros para mostrar.",
-                              ),
-                            ),
-                            rowsPerPage: 10,
-                            availableRowsPerPage: const [10, 20, 50],
-                            showFirstLastButtons: true,
-                            wrapInCard: false,
-                            source: _ReportsDataSource(records: filtered),
+        // Contenido principal: loader / error / tabla paginada
+        Expanded(
+          child: state.loading
+              ? const Center(child: CircularProgressIndicator())
+              : state.error != null
+                  ? Center(
+                      child: Text(
+                        "⚠️ ${state.error}",
+                        style: TextStyle(color: Colors.red.shade800),
+                      ),
+                    )
+                  : filtered.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "No hay registros para el filtro seleccionado.",
                           ),
-          ),
-        ],
-      ),
-    );
-  }
+                        )
+                      : PaginatedDataTable2(
+                          columns: const [
+                            DataColumn2(
+                              label: Text("Fecha"),
+                              size: ColumnSize.M,
+                            ),
+                            DataColumn2(
+                              label: Text("Estado"),
+                              size: ColumnSize.S,
+                            ),
+                            DataColumn2(
+                              label: Text("Usuario"),
+                              size: ColumnSize.L,
+                            ),
+                            DataColumn2(
+                              label: Text("Depto"),
+                              size: ColumnSize.L,
+                            ),
+                            DataColumn2(
+                              label: Text("Cochera"),
+                              size: ColumnSize.S,
+                            ),
+                            DataColumn2(
+                              label: Text("Tipo"),
+                              size: ColumnSize.S,
+                            ),
+                            // 👉 Nueva columna
+                            DataColumn2(
+                              label: Text("Presentismo"),
+                              size: ColumnSize.S,
+                            ),
+                          ],
+                          empty: const Center(
+                            child: Text(
+                              "No hay registros para mostrar.",
+                            ),
+                          ),
+                          rowsPerPage: 10,
+                          availableRowsPerPage: const [10, 20, 50],
+                          showFirstLastButtons: true,
+                          wrapInCard: false,
+                          source: _ReportsDataSource(records: filtered),
+                        ),
+        ),
+      ],
+    ),
+  );
+}
 }
 
 
@@ -292,7 +297,7 @@ class _KpiRow extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _kpiCard("Ocupación", "${state.occupancyPercent}%"),
+          _kpiCard("Ocupación", "${state.occupancyPercent.toStringAsFixed(1)}%"),
           _kpiCard("Liberadas", "${state.totalLiberated}"),
           _kpiCard("Reservadas", "${state.totalBooked}"),
           _kpiCard("Total Cocheras", "${state.totalSpots}"),
@@ -384,34 +389,85 @@ class _TotalsRow extends StatelessWidget {
 /// DATA SOURCE PARA PaginatedDataTable2
 class _ReportsDataSource extends DataTableSource {
   final List<DetailedReportRecord> records;
-  final DateFormat _df = DateFormat('dd/MM/yyyy HH:mm');
+  final DateFormat _df = DateFormat('dd/MM/yyyy');
 
   _ReportsDataSource({required this.records});
 
-  @override
-  DataRow? getRow(int index) {
-    if (index >= records.length) return null;
-    final r = records[index];
+@override
+DataRow? getRow(int index) {
+  if (index >= records.length) return null;
+  final r = records[index];
 
-    final statusColor =
-        r.status == "BOOKED" ? Colors.green : Colors.blue;
+  final statusColor =
+      r.status == "BOOKED" ? Colors.green : Colors.blue;
 
-    return DataRow(
-      cells: [
-        DataCell(Text(_df.format(r.releaseDate))),
-        DataCell(
-          Text(
-            r.status,
-            style: TextStyle(color: statusColor),
-          ),
-        ),
-        DataCell(Text(r.userName ?? "-")),
-        DataCell(Text(r.departmentName ?? "-")),
-        DataCell(Text(r.spotName ?? "-")),
-        DataCell(Text(r.spotType ?? "-")),
+  // Normalizamos fechas para comparar solo el día
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final recordDay = DateTime(
+    r.releaseDate.year,
+    r.releaseDate.month,
+    r.releaseDate.day,
+  );
+
+  Widget presentismoWidget;
+
+  if (r.status != "BOOKED") {
+    // No aplica presentismo
+    presentismoWidget = const Text("N/A");
+  } else if (recordDay.isAfter(today)) {
+    // Reserva futura siempre pendiente
+    presentismoWidget = Row(
+      children: const [
+        Icon(Icons.schedule, color: Colors.grey, size: 18),
+        SizedBox(width: 4),
+        Text("Pendiente"),
       ],
     );
+  } else if (recordDay.isAtSameMomentAs(today)) {
+    // Hoy: sólo cuenta si ya marcó presencia
+    if (r.presenceConfirmed == true) {
+      presentismoWidget =
+          const Icon(Icons.check, color: Colors.green);
+    } else {
+      presentismoWidget = Row(
+        children: const [
+          Icon(Icons.schedule, color: Colors.grey, size: 18),
+          SizedBox(width: 4),
+          Text("Pendiente"),
+        ],
+      );
+    }
+  } else {
+    // Día pasado: presencia cerrada
+    if (r.presenceConfirmed == true) {
+      presentismoWidget =
+          const Icon(Icons.check, color: Colors.green);
+    } else {
+      presentismoWidget =
+          const Icon(Icons.close, color: Colors.red);
+    }
   }
+
+  return DataRow(
+    cells: [
+      DataCell(Text(_df.format(r.releaseDate))), 
+      DataCell(
+        Text(
+          r.status,
+          style: TextStyle(color: statusColor),
+        ),
+      ),
+      DataCell(Text(r.userName ?? "-")),
+      DataCell(Text(r.departmentName ?? "-")),
+      DataCell(Text(r.spotName ?? "-")),
+      DataCell(Text(r.spotType ?? "-")),
+      DataCell(presentismoWidget),
+    ],
+  );
+}
+
+
 
   @override
   int get rowCount => records.length;

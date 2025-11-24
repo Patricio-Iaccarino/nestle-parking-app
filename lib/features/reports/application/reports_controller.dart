@@ -39,7 +39,7 @@ class ReportsState {
   final int totalSpots;
   final int totalLiberated;
   final int totalBooked;
-  final int occupancyPercent;
+  final double occupancyPercent;
 
   const ReportsState({
     required this.loading,
@@ -49,7 +49,7 @@ class ReportsState {
     this.totalSpots = 0,
     this.totalLiberated = 0,
     this.totalBooked = 0,
-    this.occupancyPercent = 0,
+    this.occupancyPercent = 0.0,
   });
 
   ReportsState copyWith({
@@ -60,7 +60,7 @@ class ReportsState {
     int? totalSpots,
     int? totalLiberated,
     int? totalBooked,
-    int? occupancyPercent,
+    double? occupancyPercent,
   }) {
     return ReportsState(
       loading: loading ?? this.loading,
@@ -195,9 +195,9 @@ class ReportsController extends Notifier<ReportsState> {
     final totalCarDays = daysInRange * totalSpots;
     final occupiedCarDays = totalCarDays - totalLiberated;
 
-    final occupancyPercent = totalCarDays == 0
-        ? 0
-        : ((occupiedCarDays / totalCarDays) * 100).round();
+    final double occupancyPercent = totalCarDays == 0
+    ? 0.0
+    : (occupiedCarDays / totalCarDays) * 100;
 
     _logger.i("Reporte cargado: ${data.length} filas");
     _logger.i("Rango normalizado: $startDay → $endDay");

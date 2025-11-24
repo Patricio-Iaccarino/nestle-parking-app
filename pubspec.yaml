@@ -16,8 +16,8 @@ dependencies:
   google_fonts: ^6.3.2
   collection: ^1.17.0
   intl: ^0.20.2
-  pdf: ^3.11.0         # Para exportar a PDF
-  printing: ^5.13.1    # para vista previa/imprimir PDFs
+  pdf: ^3.11.0         
+  printing: ^5.13.1    
   csv: ^6.0.0
   flutter_localizations:
     sdk: flutter

@@ -62,7 +62,7 @@ class DailyOccupancyPoint {
 
 class DetailedReportRecord {
   final DateTime releaseDate;
-  final String status; 
+  final String status; // AVAILABLE | BOOKED
   final String? userId;
   final String? userName;
   final String? departmentId;
@@ -70,6 +70,9 @@ class DetailedReportRecord {
   final String? spotId;
   final String? spotName;
   final String? spotType;
+
+  /// Nuevo campo: presentismo del suplente (solo tiene sentido si status == BOOKED)
+  final bool? presenceConfirmed;
 
   DetailedReportRecord({
     required this.releaseDate,
@@ -81,6 +84,7 @@ class DetailedReportRecord {
     this.spotId,
     this.spotName,
     this.spotType,
+    this.presenceConfirmed, // 👈 nuevo parámetro opcional
   });
 
   factory DetailedReportRecord.fromFirestore(
@@ -88,6 +92,7 @@ class DetailedReportRecord {
     Map<String, dynamic> data,
   ) {
     final ts = data['releaseDate'];
+
     return DetailedReportRecord(
       releaseDate: ts is Timestamp ? ts.toDate() : DateTime.now(),
       status: (data['status'] ?? '').toString(),
@@ -97,7 +102,10 @@ class DetailedReportRecord {
       departmentName: data['departmentName']?.toString(),
       spotId: data['spotId']?.toString(),
       spotName: data['spotName']?.toString(),
-      spotType: data['spotType']?.toString(), 
+      spotType: data['spotType']?.toString(),
+      //para leer el presentismo
+      presenceConfirmed:
+          data['presenceConfirmed'] is bool ? data['presenceConfirmed'] as bool : null,
     );
   }
 
@@ -111,8 +119,10 @@ class DetailedReportRecord {
         'spotId': spotId,
         'spotName': spotName,
         'spotType': spotType,
+        'presenceConfirmed': presenceConfirmed,
       };
 }
+
 
 
 DateTime dayFloor(DateTime d) => DateTime(d.year, d.month, d.day);

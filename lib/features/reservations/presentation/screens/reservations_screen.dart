@@ -213,207 +213,280 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
   // NUEVA LIBERACIÓN
   // ============================================================
   Future<void> _showCreateReleaseDialog({
-    required BuildContext context,
-    required List<Department> departments,
-    required List<ParkingSpot> allSpots,
-    required List<AppUser> users,
-  }) async {
-    final establishmentId =
-        ref.read(authControllerProvider).value?.establishmentId ?? '';
+  required BuildContext context,
+  required List<Department> departments,
+  required List<ParkingSpot> allSpots,
+  required List<AppUser> users,
+}) async {
+  final establishmentId =
+      ref.read(authControllerProvider).value?.establishmentId ?? '';
 
-    if (establishmentId.isEmpty) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se encontró el establecimiento.')),
-      );
-      return;
-    }
+  if (establishmentId.isEmpty) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se encontró el establecimiento.')),
+    );
+    return;
+  }
 
-    String? departmentId;
-    ParkingSpot? selectedSpot;
-    AppUser? selectedTitular;
-    DateTime releaseDate = DateTime.now();
+  // 🔹 Límite máximo de rango en días (inclusive)
+  const int maxRangeDays = 60;
 
-    List<ParkingSpot> spotsByDept = [];
+  String? departmentId;
+  ParkingSpot? selectedSpot;
+  AppUser? selectedTitular;
+  DateTime startDate = DateTime.now();
+  DateTime endDate = DateTime.now();
 
-    Future<void> pickDay() async {
-      final picked = await showDatePicker(
-        context: context,
-        initialDate: releaseDate,
-        firstDate: DateTime.now(),
-        lastDate: DateTime.now().add(const Duration(days: 730)),
-      );
-      if (picked != null) releaseDate = picked;
-    }
+  List<ParkingSpot> spotsByDept = [];
 
-    await showDialog(
+  Future<void> pickStartDay() async {
+    final picked = await showDatePicker(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            void updateListsForDept(String? dept) {
-              departmentId = dept;
-              selectedSpot = null;
-              selectedTitular = null;
+      initialDate: startDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+    if (picked != null) {
+      startDate = picked;
+      // Si la fecha fin quedó antes del inicio, la ajustamos
+      if (endDate.isBefore(startDate)) {
+        endDate = startDate;
+      }
+    }
+  }
 
-              spotsByDept = (dept == null)
-                  ? []
-                  : allSpots.where((s) => s.departmentId == dept).toList()
-                ..sort((a, b) => a.spotNumber.compareTo(b.spotNumber));
-            }
+  Future<void> pickEndDay() async {
+    // Limitamos la fecha fin para que no supere el máximo permitido
+    final DateTime maxEndForRange =
+        startDate.add(Duration(days: maxRangeDays - 1));
 
-            void onSpotChanged(ParkingSpot? spot) {
-              selectedSpot = spot;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: endDate.isBefore(startDate) ? startDate : endDate,
+      firstDate: startDate,
+      lastDate: maxEndForRange,
+    );
+    if (picked != null) {
+      endDate = picked;
+    }
+  }
 
-              if (spot != null &&
-                  spot.assignedUserId != null &&
-                  spot.assignedUserId!.isNotEmpty) {
-                try {
-                  selectedTitular =
-                      users.firstWhere((u) => u.id == spot.assignedUserId);
-                } catch (_) {
-                  selectedTitular = null;
-                }
-              } else {
+  await showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          void updateListsForDept(String? dept) {
+            departmentId = dept;
+            selectedSpot = null;
+            selectedTitular = null;
+
+            spotsByDept = (dept == null)
+                ? []
+                : allSpots.where((s) => s.departmentId == dept).toList()
+              ..sort((a, b) => a.spotNumber.compareTo(b.spotNumber));
+          }
+
+          void onSpotChanged(ParkingSpot? spot) {
+            selectedSpot = spot;
+
+            if (spot != null &&
+                spot.assignedUserId != null &&
+                spot.assignedUserId!.isNotEmpty) {
+              try {
+                selectedTitular =
+                    users.firstWhere((u) => u.id == spot.assignedUserId);
+              } catch (_) {
                 selectedTitular = null;
               }
+            } else {
+              selectedTitular = null;
             }
+          }
 
-            return AlertDialog(
-              title: const Text('Nueva Liberación'),
-              content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: departmentId,
-                      hint: const Text('Departamento'),
-                      items: departments
-                          .map((d) => DropdownMenuItem(
-                                value: d.id,
-                                child: Text(d.name),
-                              ))
-                          .toList(),
-                      onChanged: (val) => setState(() => updateListsForDept(val)),
-                    ),
-                    const SizedBox(height: 8),
+          return AlertDialog(
+            title: const Text('Nueva Liberación'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: departmentId,
+                    hint: const Text('Departamento'),
+                    items: departments
+                        .map((d) => DropdownMenuItem(
+                              value: d.id,
+                              child: Text(d.name),
+                            ))
+                        .toList(),
+                    onChanged: (val) => setState(() => updateListsForDept(val)),
+                  ),
+                  const SizedBox(height: 8),
 
-                    DropdownButtonFormField<ParkingSpot>(
-                      initialValue: selectedSpot,
-                      hint: const Text('Cochera'),
-                      items: spotsByDept
-                          .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(
-                                  '${s.spotNumber} · Piso ${s.floor} · ${s.type}',
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: (val) => setState(() => onSpotChanged(val)),
-                    ),
+                  DropdownButtonFormField<ParkingSpot>(
+                    initialValue: selectedSpot,
+                    hint: const Text('Cochera'),
+                    items: spotsByDept
+                        .map((s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(
+                                '${s.spotNumber} · Piso ${s.floor} · ${s.type}',
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (val) => setState(() => onSpotChanged(val)),
+                  ),
 
-                    const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-                    DropdownButtonFormField<AppUser>(
-                      initialValue: selectedTitular,
-                      hint: const Text('Titular que libera'),
-                      items: [
-                        DropdownMenuItem(
-                          value: selectedTitular,
-                          child: Text(
-                            selectedTitular?.displayName ??
-                                '(Cochera sin titular asignado)',
-                          ),
-                        )
-                      ],
-                      onChanged: null,
-                    ),
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Fecha: ${DateFormat('dd/MM/yyyy').format(releaseDate)}',
-                          ),
+                  DropdownButtonFormField<AppUser>(
+                    initialValue: selectedTitular,
+                    hint: const Text('Titular que libera'),
+                    items: [
+                      DropdownMenuItem(
+                        value: selectedTitular,
+                        child: Text(
+                          selectedTitular?.displayName ??
+                              '(Cochera sin titular asignado)',
                         ),
-                        TextButton.icon(
-                          icon: const Icon(Icons.date_range),
-                          label: const Text('Elegir'),
-                          onPressed: () async {
-                            await pickDay();
-                            setState(() {});
-                          },
+                      )
+                    ],
+                    onChanged: null,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Desde: ${DateFormat('dd/MM/yyyy').format(startDate)}',
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.date_range),
+                        label: const Text('Elegir'),
+                        onPressed: () async {
+                          await pickStartDay();
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Hasta: ${DateFormat('dd/MM/yyyy').format(endDate)}',
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.date_range),
+                        label: const Text('Elegir'),
+                        onPressed: () async {
+                          await pickEndDay();
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (departmentId == null || selectedSpot == null) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content:
-                              Text('Completá departamento y cochera.'),
-                        ),
-                      );
-                      return;
-                    }
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (departmentId == null || selectedSpot == null) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Completá departamento y cochera.'),
+                      ),
+                    );
+                    return;
+                  }
 
-                    if (selectedTitular == null) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content:
-                              Text('Seleccioná el titular que libera.'),
-                        ),
-                      );
-                      return;
-                    }
+                  if (selectedTitular == null) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Seleccioná el titular que libera.'),
+                      ),
+                    );
+                    return;
+                  }
 
-                    try {
-                      await ref
-                          .read(reservationsControllerProvider.notifier)
-                          .addRelease(
-                            establishmentId: establishmentId,
-                            departmentId: departmentId!,
-                            parkingSpotId: selectedSpot!.id,
-                            spotNumber: selectedSpot!.spotNumber,
-                            releasedByUserId: selectedTitular!.id,
-                            releaseDate: releaseDate,
-                            reloadDate: _selectedDate,
-                          );
-
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(e.toString()),
-                          backgroundColor: Colors.red,
+                  if (endDate.isBefore(startDate)) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'La fecha "hasta" no puede ser anterior a la fecha "desde".',
                         ),
-                      );
-                    }
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+                      ),
+                    );
+                    return;
+                  }
+
+                  final rangeDays =
+                      endDate.difference(startDate).inDays + 1;
+                  if (rangeDays > maxRangeDays) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'El rango seleccionado es de $rangeDays días. '
+                          'El máximo permitido es de $maxRangeDays días.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    await ref
+                        .read(reservationsControllerProvider.notifier)
+                        .addReleaseRange(
+                          establishmentId: establishmentId,
+                          departmentId: departmentId!,
+                          parkingSpotId: selectedSpot!.id,
+                          spotNumber: selectedSpot!.spotNumber,
+                          releasedByUserId: selectedTitular!.id,
+                          startDate: startDate,
+                          endDate: endDate,
+                          reloadDate: _selectedDate,
+                        );
+
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(e.toString()),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 
   // ============================================================
   // RESERVAR

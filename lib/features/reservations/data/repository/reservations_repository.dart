@@ -95,6 +95,70 @@ class ReservationsRepository {
     await _firestore.collection('spotReleases').add(data);
   }
 
+    Future<void> createReleaseRange({
+    required String establishmentId,
+    required String departmentId,
+    required String parkingSpotId,
+    required String spotNumber,
+    required String releasedByUserId, // titular
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    // Normalizamos a inicio de día
+    final DateTime start = _startOfDay(startDate);
+    final DateTime end = _startOfDay(endDate);
+
+    if (end.isBefore(start)) {
+      throw Exception('La fecha fin no puede ser anterior a la fecha inicio.');
+    }
+
+    // 1) Verificar que no haya ya liberaciones para esa cochera en el rango
+    final dupSnap = await _firestore
+        .collection('spotReleases')
+        .where('parkingSpotId', isEqualTo: parkingSpotId)
+        .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where(
+          'releaseDate',
+          isLessThan: Timestamp.fromDate(
+            end.add(const Duration(days: 1)),
+          ),
+        )
+        .limit(1)
+        .get();
+
+    if (dupSnap.docs.isNotEmpty) {
+      throw Exception(
+        'Ya existe una liberación para esa cochera en alguna fecha del rango seleccionado.',
+      );
+    }
+
+    // 2) Crear un doc por cada día del rango
+    final batch = _firestore.batch();
+
+    DateTime current = start;
+    while (!current.isAfter(end)) {
+      final docRef = _firestore.collection('spotReleases').doc();
+
+      final data = SpotRelease(
+        id: docRef.id,
+        parkingSpotId: parkingSpotId,
+        spotNumber: spotNumber,
+        establishmentId: establishmentId,
+        departmentId: departmentId,
+        releaseDate: current,
+        status: 'AVAILABLE',
+        releasedByUserId: releasedByUserId,
+        bookedByUserId: null,
+      ).toMap();
+
+      batch.set(docRef, data);
+      current = current.add(const Duration(days: 1));
+    }
+
+    await batch.commit();
+  }
+
+
   Future<void> reserveRelease({
     required String releaseId,
     required String bookedByUserId, // suplente

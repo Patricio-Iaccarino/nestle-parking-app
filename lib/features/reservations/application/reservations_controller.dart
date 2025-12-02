@@ -102,7 +102,44 @@ class ReservationsController extends StateNotifier<ReservationsState> {
       rethrow;
     }
   }
+  /// 🔹 NUEVO: liberar cochera por un RANGO de fechas (inclusive)
+  Future<void> addReleaseRange({
+    required String establishmentId,
+    required String departmentId,
+    required String parkingSpotId,
+    required String spotNumber,
+    required String releasedByUserId,
+    required DateTime startDate,
+    required DateTime endDate,
+    DateTime? reloadDate,
+  }) async {
+    try {
+      await _repository.createReleaseRange(
+        establishmentId: establishmentId,
+        departmentId: departmentId,
+        parkingSpotId: parkingSpotId,
+        spotNumber: spotNumber,
+        releasedByUserId: releasedByUserId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      // Recargamos la vista en el día que tengas seleccionado
+      await load(
+        establishmentId,
+        date: reloadDate ?? startDate,
+      );
+    } catch (e, stack) {
+      _logger.e("ERROR desde addReleaseRange()", error: e, stackTrace: stack);
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
+
+  
 }
+
+
 
 final reservationsControllerProvider =
     StateNotifierProvider<ReservationsController, ReservationsState>((ref) {

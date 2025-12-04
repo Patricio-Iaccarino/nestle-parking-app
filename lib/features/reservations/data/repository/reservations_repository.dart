@@ -5,7 +5,7 @@ import 'package:logger/logger.dart';
 
 class ReservationsRepository {
   final FirebaseFirestore _firestore;
-  final Logger _logger = Logger(); 
+  final Logger _logger = Logger();
 
   ReservationsRepository(this._firestore);
 
@@ -27,8 +27,10 @@ class ReservationsRepository {
             .subtract(const Duration(milliseconds: 1));
 
         query = query
-            .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-            .where('releaseDate', isLessThanOrEqualTo: Timestamp.fromDate(end));
+            .where('releaseDate',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('releaseDate',
+                isLessThanOrEqualTo: Timestamp.fromDate(end));
       }
 
       final snapshot = await query.get();
@@ -51,8 +53,9 @@ class ReservationsRepository {
         }
       }).toList();
     } catch (e, stack) {
-      _logger.e("ERROR TOTAL EN getReservations()", error: e, stackTrace: stack);
-      
+      _logger.e("ERROR TOTAL EN getReservations()",
+          error: e, stackTrace: stack);
+
       throw Exception('No se pudieron cargar las reservaciones.');
     }
   }
@@ -71,8 +74,12 @@ class ReservationsRepository {
     final dupQuery = await _firestore
         .collection('spotReleases')
         .where('parkingSpotId', isEqualTo: parkingSpotId)
-        .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(day))
-        .where('releaseDate', isLessThan: Timestamp.fromDate(day.add(const Duration(days: 1))))
+        .where('releaseDate',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(day))
+        .where(
+          'releaseDate',
+          isLessThan: Timestamp.fromDate(day.add(const Duration(days: 1))),
+        )
         .limit(1)
         .get();
 
@@ -95,7 +102,7 @@ class ReservationsRepository {
     await _firestore.collection('spotReleases').add(data);
   }
 
-    Future<void> createReleaseRange({
+  Future<void> createReleaseRange({
     required String establishmentId,
     required String departmentId,
     required String parkingSpotId,
@@ -109,14 +116,16 @@ class ReservationsRepository {
     final DateTime end = _startOfDay(endDate);
 
     if (end.isBefore(start)) {
-      throw Exception('La fecha fin no puede ser anterior a la fecha inicio.');
+      throw Exception(
+          'La fecha fin no puede ser anterior a la fecha inicio.');
     }
 
     // 1) Verificar que no haya ya liberaciones para esa cochera en el rango
     final dupSnap = await _firestore
         .collection('spotReleases')
         .where('parkingSpotId', isEqualTo: parkingSpotId)
-        .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('releaseDate',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where(
           'releaseDate',
           isLessThan: Timestamp.fromDate(
@@ -158,21 +167,58 @@ class ReservationsRepository {
     await batch.commit();
   }
 
-
   Future<void> reserveRelease({
     required String releaseId,
     required String bookedByUserId, // suplente
   }) async {
     final ref = _firestore.collection('spotReleases').doc(releaseId);
+
     await _firestore.runTransaction((tx) async {
+      // 1) Leemos la liberación
       final snap = await tx.get(ref);
       if (!snap.exists) {
         throw Exception('La liberación no existe.');
       }
+
       final data = snap.data() as Map<String, dynamic>;
-      if ((data['status'] as String?) != 'AVAILABLE') {
+      final String status = (data['status'] as String?) ?? 'AVAILABLE';
+
+      if (status != 'AVAILABLE') {
         throw Exception('La liberación ya no está disponible.');
       }
+
+      // 2) Tomamos fecha y establecimiento de esa liberación
+      final Timestamp ts = data['releaseDate'] as Timestamp;
+      final DateTime releaseDate = ts.toDate();
+
+      final String establishmentId =
+          (data['establishmentId'] as String?) ?? '';
+
+      // 3) Calculamos el rango del día
+      final DateTime startOfDay = _startOfDay(releaseDate);
+      final DateTime endOfDay =
+          startOfDay.add(const Duration(days: 1));
+
+      // 4) Buscamos si el suplente YA tiene una reserva BOOKED
+      //    ese mismo día en ese establecimiento
+      final dupSnap = await _firestore
+          .collection('spotReleases')
+          .where('bookedByUserId', isEqualTo: bookedByUserId)
+          .where('establishmentId', isEqualTo: establishmentId)
+          .where('releaseDate',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('releaseDate',
+              isLessThan: Timestamp.fromDate(endOfDay))
+          .where('status', isEqualTo: 'BOOKED')
+          .get();
+
+      if (dupSnap.docs.isNotEmpty) {
+        throw Exception(
+          'El suplente ya tiene una cochera reservada para ese día en este establecimiento.',
+        );
+      }
+
+      // 5) Si pasó la validación, reservamos
       tx.update(ref, {
         'status': 'BOOKED',
         'bookedByUserId': bookedByUserId,
@@ -191,7 +237,8 @@ class ReservationsRepository {
       }
       final data = snap.data() as Map<String, dynamic>;
       if ((data['status'] as String?) != 'BOOKED') {
-        throw Exception('No se puede cancelar: no está en estado BOOKED.');
+        throw Exception(
+            'No se puede cancelar: no está en estado BOOKED.');
       }
       tx.update(ref, {
         'status': 'AVAILABLE',
@@ -201,7 +248,8 @@ class ReservationsRepository {
   }
 }
 
-final reservationsRepositoryProvider = Provider<ReservationsRepository>((ref) {
+final reservationsRepositoryProvider =
+    Provider<ReservationsRepository>((ref) {
   final firestore = FirebaseFirestore.instance;
   return ReservationsRepository(firestore);
 });

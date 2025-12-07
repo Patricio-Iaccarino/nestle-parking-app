@@ -173,59 +173,67 @@ class ReservationsRepository {
   }) async {
     final ref = _firestore.collection('spotReleases').doc(releaseId);
 
+    // --- PASO 1: PRE-VALIDACIÓN (Fuera de la transacción) ---
+    // Leemos el documento para obtener los datos necesarios para la query
+    final snapshot = await ref.get();
+    
+    if (!snapshot.exists) {
+      throw Exception('La liberación no existe.');
+    }
+    
+    final data = snapshot.data() as Map<String, dynamic>;
+    
+    // Si ya está ocupada, fallamos rápido sin gastar lecturas de query
+    if (data['status'] != 'AVAILABLE') {
+      throw Exception('La liberación ya no está disponible.');
+    }
+
+    final String establishmentId = (data['establishmentId'] as String?) ?? '';
+    final Timestamp ts = data['releaseDate'] as Timestamp;
+    final DateTime releaseDate = ts.toDate();
+    
+    final DateTime startOfDay = _startOfDay(releaseDate);
+    final DateTime endOfDay = startOfDay.add(const Duration(days: 1));
+
+    // --- PASO 2: CHEQUEO DE DUPLICADOS (Query compleja) ---
+    // Hacemos esto fuera de la transacción para evitar errores en Web
+    final dupSnap = await _firestore
+        .collection('spotReleases')
+        .where('bookedByUserId', isEqualTo: bookedByUserId)
+        .where('establishmentId', isEqualTo: establishmentId)
+        .where('status', isEqualTo: 'BOOKED') // Solo reservas activas
+        .where('releaseDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('releaseDate', isLessThan: Timestamp.fromDate(endOfDay))
+        .get();
+
+    if (dupSnap.docs.isNotEmpty) {
+      throw Exception(
+        'Ya tenés una cochera reservada para este día en este establecimiento.',
+      );
+    }
+
+    // --- PASO 3: TRANSACCIÓN DE ESCRITURA ---
+    // Ahora que sabemos que el usuario puede reservar, intentamos ganar la cochera.
     await _firestore.runTransaction((tx) async {
-      // 1) Leemos la liberación
-      final snap = await tx.get(ref);
-      if (!snap.exists) {
-        throw Exception('La liberación no existe.');
+      // Leemos de nuevo DENTRO de la transacción (Bloqueo optimista)
+      // Esto asegura que nadie nos ganó de mano entre el Paso 1 y el Paso 3.
+      final freshSnap = await tx.get(ref);
+      
+      if (!freshSnap.exists) throw Exception('La liberación no existe.');
+      
+      final freshData = freshSnap.data() as Map<String, dynamic>;
+      
+      if (freshData['status'] != 'AVAILABLE') {
+        throw Exception('Lo sentimos, alguien más acaba de tomar esta cochera.');
       }
 
-      final data = snap.data() as Map<String, dynamic>;
-      final String status = (data['status'] as String?) ?? 'AVAILABLE';
-
-      if (status != 'AVAILABLE') {
-        throw Exception('La liberación ya no está disponible.');
-      }
-
-      // 2) Tomamos fecha y establecimiento de esa liberación
-      final Timestamp ts = data['releaseDate'] as Timestamp;
-      final DateTime releaseDate = ts.toDate();
-
-      final String establishmentId =
-          (data['establishmentId'] as String?) ?? '';
-
-      // 3) Calculamos el rango del día
-      final DateTime startOfDay = _startOfDay(releaseDate);
-      final DateTime endOfDay =
-          startOfDay.add(const Duration(days: 1));
-
-      // 4) Buscamos si el suplente YA tiene una reserva BOOKED
-      //    ese mismo día en ese establecimiento
-      final dupSnap = await _firestore
-          .collection('spotReleases')
-          .where('bookedByUserId', isEqualTo: bookedByUserId)
-          .where('establishmentId', isEqualTo: establishmentId)
-          .where('releaseDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('releaseDate',
-              isLessThan: Timestamp.fromDate(endOfDay))
-          .where('status', isEqualTo: 'BOOKED')
-          .get();
-
-      if (dupSnap.docs.isNotEmpty) {
-        throw Exception(
-          'El suplente ya tiene una cochera reservada para ese día en este establecimiento.',
-        );
-      }
-
-      // 5) Si pasó la validación, reservamos
+      // Si todo sigue igual, escribimos
       tx.update(ref, {
         'status': 'BOOKED',
         'bookedByUserId': bookedByUserId,
       });
     });
   }
-
   Future<void> cancelReservation({
     required String releaseId,
   }) async {

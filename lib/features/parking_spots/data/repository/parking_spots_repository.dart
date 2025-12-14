@@ -67,6 +67,21 @@ class ParkingSpotsRepository {
     await docRef.set(spotWithId.toMap());
   }
 
+  
+    /// Devuelve true si el usuario ya tiene una cochera asignada en ese depto
+  Future<bool> userHasSpotInDepartment({
+    required String userId,
+    required String departmentId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('parkingSpots')
+        .where('departmentId', isEqualTo: departmentId)
+        .where('assignedUserId', isEqualTo: userId)
+        .get();
+
+    return snapshot.docs.isNotEmpty;
+  }
+
   Future<void> updateParkingSpot(ParkingSpot spot) async {
     if (spot.id.isEmpty) throw Exception('El id no puede ser vacío');
     await _firestore

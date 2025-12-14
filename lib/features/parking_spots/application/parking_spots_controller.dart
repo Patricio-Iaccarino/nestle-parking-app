@@ -113,6 +113,40 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
       state = state.copyWith(error: e.toString());
     }
   }
+
+/// Asigna un usuario a una cochera, validando que no tenga otra en el mismo depto
+  Future<String?> assignUserToSpot({
+    required ParkingSpot spot,
+    required String userId,
+    required String userName,
+  }) async {
+    try {
+      final alreadyHasSpot = await _repository.userHasSpotInDepartment(
+        userId: userId,
+        departmentId: spot.departmentId,
+      );
+
+      if (alreadyHasSpot) {
+        return 'El usuario ya tiene una cochera asignada en este departamento.';
+      }
+
+      final updated = spot.copyWith(
+        assignedUserId: userId,
+        assignedUserName: userName,
+      );
+
+      await _repository.updateParkingSpot(updated);
+      await load(spot.departmentId); // recarga la grilla de ese depto
+
+      return null; // sin error
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return 'Ocurrió un error al asignar la cochera.';
+    }
+  }
+
+
+
 }
 
 

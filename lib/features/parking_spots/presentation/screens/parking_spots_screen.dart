@@ -157,23 +157,32 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
     List<AppUser> allUsersInDepartment,
   ) async {
     String? selectedUserId = spot.assignedUserId;
-    final assignableUsers = allUsersInDepartment
-        .where((u) => u.role == 'TITULAR')
-        .toList();
+
+    // Solo titulares se pueden asignar
+    final assignableUsers =
+        allUsersInDepartment.where((u) => u.role == 'TITULAR').toList();
+
+    // Items del combo
     List<DropdownMenuItem<String?>> dropdownItems = [];
     dropdownItems.add(
-      const DropdownMenuItem<String?>(value: null, child: Text('Sin asignar')),
+      const DropdownMenuItem<String?>(
+        value: null,
+        child: Text('Sin asignar'),
+      ),
     );
     dropdownItems.addAll(
       assignableUsers.map(
-        (u) =>
-            DropdownMenuItem<String?>(value: u.id, child: Text(u.displayName)),
+        (u) => DropdownMenuItem<String?>(
+          value: u.id,
+          child: Text(u.displayName),
+        ),
       ),
     );
+
+    // Si ya tenía alguien asignado y no está en la lista (casos viejos)
     if (selectedUserId != null && selectedUserId.isNotEmpty) {
-      bool alreadyIncluded = dropdownItems.any(
-        (item) => item.value == selectedUserId,
-      );
+      final alreadyIncluded =
+          dropdownItems.any((item) => item.value == selectedUserId);
       if (!alreadyIncluded) {
         try {
           final currentlyAssignedUser = allUsersInDepartment.firstWhere(
@@ -185,13 +194,14 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
               child: Text('${currentlyAssignedUser.displayName} (Asignado)'),
             ),
           );
-        } catch (e) {
-          // No hacemos nada si no se encuentra el usuario
+        } catch (_) {
+          // si no lo encuentra, lo ignoramos
         }
       }
     }
+
     String? tempSelectedUserId = selectedUserId;
-    _assignDialogState.value = false; 
+    _assignDialogState.value = false;
 
     await showDialog(
       context: context,
@@ -211,17 +221,17 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                     },
               decoration: const InputDecoration(labelText: 'Usuario Titular'),
               selectedItemBuilder: (BuildContext context) {
-                return dropdownItems.map<Widget>((
-                  DropdownMenuItem<String?> item,
-                ) {
-                  final child = item.child;
-                  if (child is Text) {
-                    return Text(
-                      item.value == null ? '(Sin asignar)' : child.data ?? '',
-                    );
-                  }
-                  return const Text('');
-                }).toList();
+                return dropdownItems.map<Widget>(
+                  (DropdownMenuItem<String?> item) {
+                    final child = item.child;
+                    if (child is Text) {
+                      return Text(
+                        item.value == null ? '(Sin asignar)' : child.data ?? '',
+                      );
+                    }
+                    return const Text('');
+                  },
+                ).toList();
               },
             ),
             actions: [
@@ -235,21 +245,63 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
                     ? null
                     : () async {
                         _assignDialogState.value = true;
-                        final updatedSpot = spot.copyWith(
-                          assignedUserId: tempSelectedUserId,
-                          clearAssignedUser: tempSelectedUserId == null,
-                        );
 
                         try {
-                          await controller.update(updatedSpot);
-                          if (context.mounted) Navigator.pop(context);
+                          // 1️⃣ Caso "Sin asignar": se permite siempre, sin validación
+                          if (tempSelectedUserId == null) {
+                            final updatedSpot = spot.copyWith(
+                              assignedUserId: null,
+                              assignedUserName: null,
+                              clearAssignedUser: true,
+                            );
+                            await controller.update(updatedSpot);
+
+                            if (context.mounted) Navigator.pop(context);
+                            return;
+                          }
+
+                          // 2️⃣ Caso asignar titular: usamos el método con validación
+                          final selectedUser = allUsersInDepartment.firstWhere(
+                            (u) => u.id == tempSelectedUserId,
+                          );
+
+                          final error =
+                              await controller.assignUserToSpot(
+                            spot: spot,
+                            userId: selectedUser.id,
+                            userName: selectedUser.displayName,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (error != null) {
+                            // Hubo conflicto (ya tiene cochera en el depto)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(error),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            _assignDialogState.value = false;
+                          } else {
+                            // Todo OK
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cochera asignada correctamente'),
+                              ),
+                            );
+                            Navigator.pop(context);
+                          }
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: ${e.toString()}')),
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
-                            _assignDialogState.value = false;
                           }
+                          _assignDialogState.value = false;
                         }
                       },
                 child: Text(isSaving ? "Guardando..." : "Guardar"),
@@ -260,6 +312,7 @@ class _ParkingSpotsScreenState extends ConsumerState<ParkingSpotsScreen> {
       ),
     );
   }
+
 
   Future<void> _confirmDelete(
     BuildContext context,

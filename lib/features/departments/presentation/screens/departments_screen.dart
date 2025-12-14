@@ -37,29 +37,28 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
   @override
   Widget build(BuildContext context) {
     final departmentState = ref.watch(departmentsControllerProvider);
-    final departmentsController = ref.read(
-      departmentsControllerProvider.notifier,
-    );
+    final departmentsController =
+        ref.read(departmentsControllerProvider.notifier);
+
     final usersState = ref.watch(usersControllerProvider);
     final parkingSpotsState = ref.watch(parkingSpotsControllerProvider);
-    final establishmentsController = ref.read(
-      establishmentsControllerProvider.notifier,
-    );
-    final Establishment? currentEstablishment = establishmentsController
-        .getEstablishmentById(widget.establishmentId);
+
+    final establishmentsController =
+        ref.read(establishmentsControllerProvider.notifier);
+    final Establishment? currentEstablishment =
+        establishmentsController.getEstablishmentById(widget.establishmentId);
 
     if (currentEstablishment == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    // -------------------------------------
 
-    final bool isLoading =
-        departmentState.isLoading ||
+    final bool isLoading = departmentState.isLoading ||
         usersState.isLoading ||
         parkingSpotsState.isLoading;
 
-    final String? error =
-        departmentState.error ?? usersState.error ?? parkingSpotsState.error;
+    final String? error = departmentState.error ??
+        usersState.error ??
+        parkingSpotsState.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -67,7 +66,6 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            // --- 👇 CAMBIO 4: Refrescamos los TRES ---
             onPressed: () {
               ref
                   .read(departmentsControllerProvider.notifier)
@@ -127,25 +125,54 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                       DataCell(
                         Row(
                           children: [
+                            // 👤 Gestionar usuarios
                             IconButton(
                               icon: const Icon(Icons.group),
                               tooltip: 'Gestionar Usuarios',
-                              onPressed: () {
-                                context.push(
-                                  // (Esta ruta funciona gracias a la lógica del AppLayout que arreglamos)
+                              onPressed: () async {
+                                await context.push(
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/users',
                                 );
+
+                                // Al volver, recargamos todo el contexto del establecimiento
+                                ref
+                                    .read(departmentsControllerProvider.notifier)
+                                    .load(widget.establishmentId);
+                                ref
+                                    .read(usersControllerProvider.notifier)
+                                    .loadUsersByEstablishment(
+                                        widget.establishmentId);
+                                ref
+                                    .read(parkingSpotsControllerProvider
+                                        .notifier)
+                                    .loadByEstablishment(
+                                        widget.establishmentId);
                               },
                             ),
+                            // 🚗 Ver cocheras
                             IconButton(
                               icon: const Icon(
                                 Icons.directions_car_filled_outlined,
                               ),
                               tooltip: 'Ver Cocheras',
-                              onPressed: () {
-                                context.push(
+                              onPressed: () async {
+                                await context.push(
                                   '/establishments/${widget.establishmentId}/departments/${dept.id}/spots?departmentName=${Uri.encodeComponent(dept.name)}',
                                 );
+
+                                // Al volver de cocheras, también recargamos
+                                ref
+                                    .read(departmentsControllerProvider.notifier)
+                                    .load(widget.establishmentId);
+                                ref
+                                    .read(usersControllerProvider.notifier)
+                                    .loadUsersByEstablishment(
+                                        widget.establishmentId);
+                                ref
+                                    .read(parkingSpotsControllerProvider
+                                        .notifier)
+                                    .loadByEstablishment(
+                                        widget.establishmentId);
                               },
                             ),
                             IconButton(
@@ -181,7 +208,9 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
-  
+  // ─────────────────────────────────────────────────────────────
+  // NUEVO DEPARTAMENTO
+  // ─────────────────────────────────────────────────────────────
   Future<void> _showAddDialog(
     BuildContext context,
     DepartmentsController controller,
@@ -193,10 +222,14 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     final parkingSpotsController = TextEditingController();
 
     final departmentState = ref.read(departmentsControllerProvider);
+
+    // Cocheras globales ya asignadas a departamentos
     final totalAssignedSpots = departmentState.departments.fold<int>(
       0,
       (sum, dept) => sum + dept.parkingSpotsCount,
     );
+
+    // Cocheras globales disponibles (sin asignar a ningún departamento)
     final availableSpots =
         currentEstablishment.totalParkingSpots - totalAssignedSpots;
 
@@ -276,6 +309,9 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // EDITAR DEPARTAMENTO
+  // ─────────────────────────────────────────────────────────────
   Future<void> _showEditDialog(
     BuildContext context,
     DepartmentsController controller,
@@ -292,14 +328,19 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
 
     final departmentState = ref.read(departmentsControllerProvider);
+
+    // Suma de cocheras asignadas a TODOS los deptos
     final totalAssignedSpots = departmentState.departments.fold<int>(
       0,
       (sum, d) => sum + d.parkingSpotsCount,
     );
-    final availableSpots =
-        currentEstablishment.totalParkingSpots -
-        totalAssignedSpots +
-        dept.parkingSpotsCount;
+
+    // Cocheras globales libres (sin asignar a ningún departamento)
+    final globalAvailable =
+        currentEstablishment.totalParkingSpots - totalAssignedSpots;
+
+    // Máximo que puede tener ESTE depto = lo que ya tiene + lo global libre
+    final maxForThisDept = globalAvailable + dept.parkingSpotsCount;
 
     await showDialog(
       context: context,
@@ -329,7 +370,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                 controller: parkingSpotsController,
                 decoration: InputDecoration(
                   labelText: 'Cantidad de Cocheras',
-                  helperText: 'Disponibles: $availableSpots',
+                  // 👀 Ahora mostramos SIEMPRE las cocheras globales libres
+                  helperText: 'Disponibles: $globalAvailable',
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -340,8 +382,8 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
                   if (spots == null || spots < 0) {
                     return 'Ingrese un número válido';
                   }
-                  if (spots > availableSpots) {
-                    return 'Excede las cocheras disponibles ($availableSpots)';
+                  if (spots > maxForThisDept) {
+                    return 'Excede las cocheras disponibles para este departamento ($maxForThisDept)';
                   }
                   return null;
                 },
@@ -374,6 +416,9 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // ELIMINAR DEPARTAMENTO
+  // ─────────────────────────────────────────────────────────────
   Future<void> _confirmDelete(
     BuildContext context,
     DepartmentsController controller,

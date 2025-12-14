@@ -19,7 +19,49 @@ class ParkingSpotsRepository {
         .toList();
   }
 
+  /// 🔹 Obtiene el máximo de cocheras permitido para un departamento
+  Future<int?> _getMaxSpotsForDepartment(String departmentId) async {
+    if (departmentId.isEmpty) return null;
+
+    final deptSnap =
+        await _firestore.collection('departments').doc(departmentId).get();
+
+    if (!deptSnap.exists) return null;
+
+    final data = deptSnap.data();
+    if (data == null) return null;
+
+    final max = (data['parkingSpotsCount'] as num?)?.toInt();
+    return max;
+  }
+
+  /// 🔹 Cuenta cuántas cocheras tiene hoy un departamento
+  Future<int> _countSpotsForDepartment(String departmentId) async {
+    final snap = await _firestore
+        .collection('parkingSpots')
+        .where('departmentId', isEqualTo: departmentId)
+        .get();
+
+    return snap.size;
+  }
+
   Future<void> createParkingSpot(ParkingSpot spot) async {
+    // 1) Validar capacidad del depto (si tiene configurado parkingSpotsCount)
+    final maxSpots = await _getMaxSpotsForDepartment(spot.departmentId);
+
+    if (maxSpots != null && maxSpots > 0) {
+      final currentCount = await _countSpotsForDepartment(spot.departmentId);
+
+      if (currentCount >= maxSpots) {
+        // 👇 Importante: no creamos el documento y avisamos con un mensaje claro
+        throw Exception(
+          'No se pueden crear más cocheras para este departamento. '
+          'Límite configurado: $maxSpots.',
+        );
+      }
+    }
+
+    // 2) Crear cochera normalmente
     final docRef = _firestore.collection('parkingSpots').doc();
     final spotWithId = spot.copyWith(id: docRef.id);
     await docRef.set(spotWithId.toMap());

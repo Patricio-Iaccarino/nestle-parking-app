@@ -10,10 +10,6 @@ import 'package:cocheras_nestle_web/features/parking_spots/domain/models/parking
 import 'package:cocheras_nestle_web/features/users/application/users_controller.dart';
 import 'package:cocheras_nestle_web/features/parking_spots/application/parking_spots_controller.dart';
 
-// 👇 IMPORTS DE VEHÍCULOS (ajustá paths si hace falta)
-import 'package:cocheras_nestle_web/features/vehicles/application/vehicle_controller.dart';
-import 'package:cocheras_nestle_web/features/vehicles/domain/vehicle_model.dart';
-
 class GlobalUsersScreen extends ConsumerStatefulWidget {
   const GlobalUsersScreen({super.key});
 
@@ -32,16 +28,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
           ref.read(authControllerProvider).value?.establishmentId;
       if (establishmentId == null) return;
 
-      ref
-          .read(usersControllerProvider.notifier)
-          .loadUsersByEstablishment(establishmentId);
-      ref
-          .read(parkingSpotsControllerProvider.notifier)
-          .loadByEstablishment(establishmentId);
+      ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
+      ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId);
       ref.read(departmentsControllerProvider.notifier).load(establishmentId);
-
-      // 👇 Cargar vehículos (colección vehicles)
-      ref.read(vehiclesControllerProvider.notifier).load();
     });
   }
 
@@ -51,17 +40,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     final departmentState = ref.watch(departmentsControllerProvider);
     final usersState = ref.watch(usersControllerProvider);
     final parkingSpotsState = ref.watch(parkingSpotsControllerProvider);
-    final vehiclesState = ref.watch(vehiclesControllerProvider);
 
-    final bool isLoading = usersState.isLoading ||
-        departmentState.isLoading ||
-        parkingSpotsState.isLoading ||
-        vehiclesState.isLoading;
-
-    final String? error = usersState.error ??
-        departmentState.error ??
-        parkingSpotsState.error ??
-        vehiclesState.error;
+    final bool isLoading = usersState.isLoading || departmentState.isLoading || parkingSpotsState.isLoading;
+    final String? error = usersState.error ?? departmentState.error ?? parkingSpotsState.error;
 
     final users = usersState.users.where((u) {
       final q = searchQuery.toLowerCase();
@@ -71,7 +52,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 
     final departments = departmentState.departments;
     final parkingSpots = parkingSpotsState.parkingSpots;
-    final vehicles = vehiclesState.vehicles; // 👈 lista de Vehicle
 
     return Scaffold(
       appBar: AppBar(
@@ -83,16 +63,9 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
               final establishmentId =
                   ref.read(authControllerProvider).value?.establishmentId;
               if (establishmentId == null) return;
-              ref
-                  .read(usersControllerProvider.notifier)
-                  .loadUsersByEstablishment(establishmentId);
-              ref
-                  .read(parkingSpotsControllerProvider.notifier)
-                  .loadByEstablishment(establishmentId);
-              ref.read(departmentsControllerProvider.notifier).load(
-                    establishmentId,
-                  );
-              ref.read(vehiclesControllerProvider.notifier).load();
+              ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(establishmentId);
+              ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(establishmentId);
+              ref.read(departmentsControllerProvider.notifier).load(establishmentId);
             },
           ),
           IconButton(
@@ -125,36 +98,28 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                       )
                     : PaginatedDataTable2(
                         columns: const [
-                          DataColumn2(
-                              label: Text('Nombre'), size: ColumnSize.L),
-                          DataColumn2(
-                              label: Text('Email'), size: ColumnSize.L),
+                          DataColumn2(label: Text('Nombre'), size: ColumnSize.L),
+                          DataColumn2(label: Text('Email'), size: ColumnSize.L),
                           DataColumn2(label: Text('Rol'), size: ColumnSize.S),
                           DataColumn2(
                               label: Text('Departamento'),
                               size: ColumnSize.M),
-                          DataColumn2(
-                              label: Text('Cochera'), size: ColumnSize.S),
-                          // 👇 Nueva columna vehículo
-                          DataColumn2(
-                              label: Text('Vehículo'), size: ColumnSize.L),
-                          DataColumn2(
-                              label: Text('Acciones'), size: ColumnSize.S),
+                          DataColumn2(label: Text('Cochera'), size: ColumnSize.S),
+                          DataColumn2(label: Text('Acciones'), size: ColumnSize.S),
                         ],
                         empty: Center(
-                          child: Text(
-                              error ?? 'No se encontraron usuarios.'),
+                          child: Text(error ?? 'No se encontraron usuarios.'),
                         ),
                         rowsPerPage: 20,
                         availableRowsPerPage: const [10, 20, 50],
-                        minWidth: 1200, // un poco más ancho por la columna extra
+                        minWidth: 1000,
                         showFirstLastButtons: true,
                         wrapInCard: false,
                         source: _UsersDataSource(
                           users: users,
                           departments: departments,
                           parkingSpots: parkingSpots,
-                          vehicles: vehicles,
+                          // --- 👇 Pasamos la lista de departamentos al diálogo ---
                           onEdit: (user) => _showEditDialog(
                               context, adminController, user, departments),
                           onDelete: (userId) =>
@@ -167,9 +132,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
-  // ============================
-  // ELIMINAR USUARIO
-  // ============================
   Future<void> _confirmDelete(
     BuildContext context,
     AdminController controller,
@@ -202,23 +164,18 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
+                          backgroundColor: Colors.red),
                       onPressed: () async {
                         setState(() => isDeleting = true);
                         await controller.deleteUser(userId);
-
+                        
                         final estId = ref
                             .read(authControllerProvider)
                             .value
                             ?.establishmentId;
                         if (estId != null) {
-                          await ref
-                              .read(usersControllerProvider.notifier)
-                              .loadUsersByEstablishment(estId);
-                          await ref
-                              .read(parkingSpotsControllerProvider.notifier)
-                              .loadByEstablishment(estId);
+                          await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(estId);
+                          await ref.read(parkingSpotsControllerProvider.notifier).loadByEstablishment(estId);
                         }
                         if (context.mounted) Navigator.pop(context);
                       },
@@ -231,9 +188,6 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
-  // ============================
-  // NUEVO USUARIO
-  // ============================
   Future<void> _showCreateUserDialog(
     BuildContext context,
     AdminController controller,
@@ -264,8 +218,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                     children: [
                       TextFormField(
                         controller: nameController,
-                        decoration:
-                            const InputDecoration(labelText: 'Nombre'),
+                        decoration: const InputDecoration(labelText: 'Nombre'),
                         enabled: !isSaving,
                         validator: (val) {
                           if (val == null || val.trim().isEmpty) {
@@ -273,14 +226,12 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           }
                           return null;
                         },
-                        autovalidateMode:
-                            AutovalidateMode.onUserInteraction,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: emailController,
-                        decoration:
-                            const InputDecoration(labelText: 'Email'),
+                        decoration: const InputDecoration(labelText: 'Email'),
                         enabled: !isSaving,
                         validator: (val) {
                           if (val == null || val.trim().isEmpty) {
@@ -293,32 +244,28 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                           }
                           return null;
                         },
-                        autovalidateMode:
-                            AutovalidateMode.onUserInteraction,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
-                        decoration:
-                            const InputDecoration(labelText: 'Rol'),
+                        decoration: const InputDecoration(labelText: 'Rol'),
                         items: const [
-                          DropdownMenuItem(
-                              value: 'TITULAR', child: Text('Titular')),
+                          DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
                           DropdownMenuItem(
                               value: 'SUPLENTE', child: Text('Suplente')),
                         ],
                         onChanged: isSaving
                             ? null
-                            : (val) => setState(
-                                () => selectedRole = val ?? 'TITULAR'),
+                            : (val) =>
+                                setState(() => selectedRole = val ?? 'TITULAR'),
                       ),
                       const SizedBox(height: 8),
-                      if (selectedRole == 'TITULAR' ||
-                          selectedRole == 'SUPLENTE')
+                      if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                         DropdownButtonFormField<String>(
                           initialValue: selectedDepartmentId,
-                          decoration: const InputDecoration(
-                              labelText: 'Departamento'),
+                          decoration:
+                              const InputDecoration(labelText: 'Departamento'),
                           items: departments
                               .map((d) => DropdownMenuItem(
                                     value: d.id,
@@ -335,8 +282,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             }
                             return null;
                           },
-                          autovalidateMode:
-                              AutovalidateMode.onUserInteraction,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                         ),
                       if (isSaving) ...[
                         const SizedBox(height: 20),
@@ -356,9 +302,8 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
-                          if (!(formKey.currentState?.validate() ??
-                              false)) {
-                            return;
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return; 
                           }
 
                           setState(() => isSaving = true);
@@ -373,7 +318,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             vehiclePlates: const [],
                             departmentId: selectedDepartmentId ?? '',
                           );
-
+                          
                           try {
                             await controller.createUser(newUser);
                             final estId = ref
@@ -381,22 +326,19 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                                 .value
                                 ?.establishmentId;
                             if (estId != null) {
-                              await ref
-                                  .read(usersControllerProvider.notifier)
-                                  .loadUsersByEstablishment(estId);
+                              await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(estId);
                             }
                             if (context.mounted) Navigator.pop(context);
                           } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                      'Error al crear: ${e.toString()}'),
+                                  content: Text('Error al crear: ${e.toString()}'),
                                   backgroundColor: Colors.red,
                                 ),
                               );
-                            }
-                            setState(() => isSaving = false);
+                             }
+                             setState(() => isSaving = false);
                           }
                         },
                   child: const Text('Guardar'),
@@ -409,22 +351,21 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
     );
   }
 
-  // ============================
-  // EDITAR USUARIO
-  // ============================
+  // ───────────────────────────────────────────────
+  // EDITAR USUARIO (CON CAMBIO DE DEPARTAMENTO)
+  // ───────────────────────────────────────────────
   Future<void> _showEditDialog(
     BuildContext context,
     AdminController controller,
     AppUser user,
-    List<Department> departments,
+    List<Department> departments, // --- 👇 Recibe la lista de departamentos ---
   ) async {
     final formKey = GlobalKey<FormState>();
-    final nameController =
-        TextEditingController(text: user.displayName);
+    final nameController = TextEditingController(text: user.displayName);
     final emailController = TextEditingController(text: user.email);
     String selectedRole = user.role;
-    String? selectedDepartmentId =
-        user.departmentId.isEmpty ? null : user.departmentId;
+    // --- 👇 Inicializamos el departamento seleccionado ---
+    String? selectedDepartmentId = user.departmentId.isEmpty ? null : user.departmentId;
     bool isSaving = false;
 
     await showDialog(
@@ -442,8 +383,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   children: [
                     TextFormField(
                       controller: nameController,
-                      decoration:
-                          const InputDecoration(labelText: 'Nombre'),
+                      decoration: const InputDecoration(labelText: 'Nombre'),
                       enabled: !isSaving,
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
@@ -451,13 +391,11 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                         }
                         return null;
                       },
-                      autovalidateMode:
-                          AutovalidateMode.onUserInteraction,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                     ),
                     TextFormField(
                       controller: emailController,
-                      decoration:
-                          const InputDecoration(labelText: 'Email'),
+                      decoration: const InputDecoration(labelText: 'Email'),
                       enabled: !isSaving,
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
@@ -470,31 +408,26 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                         }
                         return null;
                       },
-                      autovalidateMode:
-                          AutovalidateMode.onUserInteraction,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
                     ),
                     DropdownButtonFormField<String>(
                       initialValue: selectedRole,
                       items: const [
-                        DropdownMenuItem(
-                            value: 'TITULAR', child: Text('Titular')),
-                        DropdownMenuItem(
-                            value: 'SUPLENTE', child: Text('Suplente')),
+                        DropdownMenuItem(value: 'TITULAR', child: Text('Titular')),
+                        DropdownMenuItem(value: 'SUPLENTE', child: Text('Suplente')),
+                        // Opcional: DropdownMenuItem(value: 'SEGURIDAD', child: Text('Seguridad')),
                       ],
-                      onChanged: isSaving
-                          ? null
-                          : (val) => setState(
-                              () => selectedRole = val ?? user.role),
-                      decoration:
-                          const InputDecoration(labelText: 'Rol'),
+                      onChanged:
+                          isSaving ? null : (val) => setState(() => selectedRole = val ?? user.role),
+                      decoration: const InputDecoration(labelText: 'Rol'),
                     ),
                     const SizedBox(height: 8),
-                    if (selectedRole == 'TITULAR' ||
-                        selectedRole == 'SUPLENTE')
+                    
+                    // --- 👇 Muestra el dropdown de departamento si es Titular/Suplente ---
+                    if (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE')
                       DropdownButtonFormField<String>(
                         initialValue: selectedDepartmentId,
-                        decoration: const InputDecoration(
-                            labelText: 'Departamento'),
+                        decoration: const InputDecoration(labelText: 'Departamento'),
                         items: departments
                             .map((d) => DropdownMenuItem(
                                   value: d.id,
@@ -503,17 +436,16 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                             .toList(),
                         onChanged: isSaving
                             ? null
-                            : (val) =>
-                                setState(() => selectedDepartmentId = val),
+                            : (val) => setState(() => selectedDepartmentId = val),
                         validator: (val) {
                           if (val == null) {
                             return 'Debe seleccionar un depto.';
                           }
                           return null;
                         },
-                        autovalidateMode:
-                            AutovalidateMode.onUserInteraction,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                       ),
+
                     if (isSaving) ...[
                       const SizedBox(height: 20),
                       const CircularProgressIndicator(),
@@ -531,47 +463,41 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
-                          if (!(formKey.currentState?.validate() ??
-                              false)) {
+                          if (!(formKey.currentState?.validate() ?? false)) {
                             return;
                           }
                           setState(() => isSaving = true);
 
+                          // --- 👇 Lógica para actualizar el departamento ---
                           final updated = user.copyWith(
-                            displayName:
-                                nameController.text.trim(),
+                            displayName: nameController.text.trim(),
                             email: emailController.text.trim(),
                             role: selectedRole,
-                            departmentId:
-                                (selectedRole == 'TITULAR' ||
-                                        selectedRole == 'SUPLENTE')
-                                    ? (selectedDepartmentId ?? '')
-                                    : '',
+                            // Si es titular o suplente, guarda el ID. Si no, lo borra.
+                            departmentId: (selectedRole == 'TITULAR' || selectedRole == 'SUPLENTE') 
+                                ? (selectedDepartmentId ?? '')
+                                : '',
                           );
 
                           try {
                             await controller.updateUser(updated);
-                            final estId = ref
-                                .read(authControllerProvider)
-                                .value
-                                ?.establishmentId;
+                            
+                            final estId =
+                                ref.read(authControllerProvider).value?.establishmentId;
                             if (estId != null) {
-                              await ref
-                                  .read(usersControllerProvider.notifier)
-                                  .loadUsersByEstablishment(estId);
+                              await ref.read(usersControllerProvider.notifier).loadUsersByEstablishment(estId);
                             }
                             if (context.mounted) Navigator.pop(context);
                           } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                      'Error al actualizar: ${e.toString()}'),
+                                  content: Text('Error al actualizar: ${e.toString()}'),
                                   backgroundColor: Colors.red,
                                 ),
                               );
-                            }
-                            setState(() => isSaving = false);
+                             }
+                             setState(() => isSaving = false);
                           }
                         },
                   child: const Text('Guardar cambios'),
@@ -588,8 +514,7 @@ class _GlobalUsersScreenState extends ConsumerState<GlobalUsersScreen> {
 class _UsersDataSource extends DataTableSource {
   final List<AppUser> users;
   final List<Department> departments;
-  final List<ParkingSpot> parkingSpots;
-  final List<Vehicle> vehicles; // 👈 vehículos
+  final List<dynamic> parkingSpots; 
   final Function(AppUser) onEdit;
   final Function(String) onDelete;
 
@@ -597,7 +522,6 @@ class _UsersDataSource extends DataTableSource {
     required this.users,
     required this.departments,
     required this.parkingSpots,
-    required this.vehicles,
     required this.onEdit,
     required this.onDelete,
   });
@@ -613,23 +537,12 @@ class _UsersDataSource extends DataTableSource {
 
   String _getSpotNumber(String userId) {
     try {
-      return parkingSpots
+      return (parkingSpots as List<ParkingSpot>)
           .firstWhere((s) => s.assignedUserId == userId)
           .spotNumber;
     } catch (_) {
       return '-';
     }
-  }
-
-  // 👇 Vehículos por usuario: si tiene varios, los concatenamos
-  String _getVehicleInfo(String userId) {
-    final owned = vehicles.where((v) => v.ownerId == userId).toList();
-    if (owned.isEmpty) {
-      return 'N/A (sin vehículo cargado)';
-    }
-    return owned
-        .map((v) => '${v.plate} (${v.brand} ${v.model})')
-        .join(' | ');
   }
 
   @override
@@ -643,7 +556,6 @@ class _UsersDataSource extends DataTableSource {
         DataCell(Text(user.role)),
         DataCell(Text(_getDepartmentName(user.departmentId))),
         DataCell(Text(_getSpotNumber(user.id))),
-        DataCell(Text(_getVehicleInfo(user.id))), // 👈 nueva celda
         DataCell(
           Row(
             children: [
@@ -664,10 +576,8 @@ class _UsersDataSource extends DataTableSource {
 
   @override
   int get rowCount => users.length;
-
   @override
   bool get isRowCountApproximate => false;
-
   @override
   int get selectedRowCount => 0;
 }

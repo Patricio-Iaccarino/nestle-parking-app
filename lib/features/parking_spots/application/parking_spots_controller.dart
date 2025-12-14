@@ -33,7 +33,8 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
   Future<void> load(String departmentId) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final result = await _repository.getParkingSpotsByDepartment(departmentId);
+      final result =
+          await _repository.getParkingSpotsByDepartment(departmentId);
       state = state.copyWith(parkingSpots: result, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
@@ -41,28 +42,62 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
   }
 
   Future<void> loadByEstablishment(String establishmentId) async {
-  state = state.copyWith(isLoading: true, error: null);
-  try {
-    final result = await _repository.getParkingSpotsByEstablishment(establishmentId);
-    state = state.copyWith(parkingSpots: result, isLoading: false);
-  } catch (e) {
-    state = state.copyWith(error: e.toString(), isLoading: false);
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final result =
+          await _repository.getParkingSpotsByEstablishment(establishmentId);
+      state = state.copyWith(parkingSpots: result, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
   }
-}
 
-
-
+  // 🔹 CREATE con validación de duplicados
   Future<void> create(ParkingSpot spot) async {
     try {
+      // 1) Validar que no exista cochera duplicada (mismo número + piso + establecimiento)
+      final exists = state.parkingSpots.any((s) =>
+          s.establishmentId == spot.establishmentId &&
+          s.floor == spot.floor &&
+          s.spotNumber.trim().toLowerCase() ==
+              spot.spotNumber.trim().toLowerCase());
+
+      if (exists) {
+        state = state.copyWith(
+          error:
+              'Ya existe una cochera con el número ${spot.spotNumber} en el piso ${spot.floor} para este establecimiento.',
+        );
+        return; // no creamos nada
+      }
+
+      // 2) Lógica normal (incluye tu validación de límite en el repositorio)
       await _repository.createParkingSpot(spot);
-      await load(spot.departmentId); // Recarga la lista
+      await load(spot.departmentId); // recarga lista como ya lo tenías
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
+  // 🔹 UPDATE con validación de duplicados
   Future<void> update(ParkingSpot spot) async {
     try {
+      // 1) Validar que no choque con OTRA cochera
+      final exists = state.parkingSpots.any((s) =>
+          s.id != spot.id && // distinta cochera
+          s.establishmentId == spot.establishmentId &&
+          s.floor == spot.floor &&
+          s.spotNumber.trim().toLowerCase() ==
+              spot.spotNumber.trim().toLowerCase());
+
+      if (exists) {
+        state = state.copyWith(
+          error:
+              'Ya existe otra cochera con el número ${spot.spotNumber} en el piso ${spot.floor} para este establecimiento.',
+        );
+        return; // no actualizamos
+      }
+
+      // 2) Actualización normal
       await _repository.updateParkingSpot(spot);
       await load(spot.departmentId);
     } catch (e) {
@@ -79,6 +114,7 @@ class ParkingSpotsController extends StateNotifier<ParkingSpotsState> {
     }
   }
 }
+
 
 final parkingSpotsControllerProvider =
     StateNotifierProvider<ParkingSpotsController, ParkingSpotsState>((ref) {
